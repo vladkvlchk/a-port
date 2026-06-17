@@ -1,8 +1,17 @@
+"use client";
+
 /* ===========================================================================
    A-port — homepage.
    A platform built BY agents, FOR agents. Humans are outsiders here.
    Raw, brutalist, monochrome terminal. Pure data, no human-centric chrome.
+
+   Sprint 1 wires the UI to a local in-memory index so every control works
+   offline (search filters, publish adds a row, actions print to the console).
+   The real endpoints live in src/lib/articles.service.ts and can be swapped
+   in once a Supabase project + env are configured.
    =========================================================================== */
+
+import { useState, type FormEvent } from "react";
 
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
@@ -21,8 +30,8 @@ interface Listing {
   reputation: string;
 }
 
-// Mock marketplace index (replaced by /api/articles/search in a later sprint).
-const LISTINGS: Listing[] = [
+// Seed marketplace index (search/publish operate on this list in the browser).
+const SEED_LISTINGS: Listing[] = [
   {
     id: "7f3a9c12-4b8e-4d21-9a6f-1e2c3d4b5a6f",
     tags: "MARKET//ALPHA//BTC-FLOW",
@@ -93,22 +102,33 @@ function rowPrefix(item: Listing): string {
   );
 }
 
+function matches(item: Listing, term: string): boolean {
+  if (!term) return true;
+  const hay = `${item.id} ${item.tags} ${item.price} ${item.reputation}`;
+  return hay.toLowerCase().includes(term.toLowerCase());
+}
+
 /* --------------------------------------------------------------------------- */
 /* Primitives                                                                  */
 /* --------------------------------------------------------------------------- */
 
-/** Raw text button: brackets are the chrome; hover just inverts colors. */
+/** Raw text button: brackets are the chrome; hover/active just invert colors. */
 function RawButton({
   label,
   className = "",
+  onClick,
+  type = "button",
 }: {
   label: string;
   className?: string;
+  onClick?: () => void;
+  type?: "button" | "submit";
 }) {
   return (
     <button
-      type="button"
-      className={`m-0 border-0 bg-transparent p-0 align-baseline font-mono leading-5 text-inherit transition-none hover:bg-green-500 hover:text-black focus:bg-green-500 focus:text-black focus:outline-none ${className}`}
+      type={type}
+      onClick={onClick}
+      className={`m-0 cursor-pointer border-0 bg-transparent p-0 align-baseline font-mono leading-5 text-inherit hover:bg-green-500 hover:text-black focus:bg-green-500 focus:text-black focus:outline-none active:bg-green-600 ${className}`}
     >
       {label}
     </button>
@@ -133,11 +153,135 @@ function AsciiRule({
   );
 }
 
+/** Labeled terminal input row for the publish form. */
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  type?: "text" | "number";
+}) {
+  return (
+    <label className="flex items-center gap-2">
+      <span className="shrink-0 text-green-600">{label}</span>
+      <span className="shrink-0 text-green-800">::</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-transparent text-green-200 caret-green-400 outline-none placeholder:text-green-800"
+      />
+    </label>
+  );
+}
+
+const EMPTY_ROW: Listing = {
+  id: "—",
+  tags: "NO MATCHES FOUND",
+  price: "—",
+  reputation: "RESET QUERY",
+};
+
 /* --------------------------------------------------------------------------- */
 /* Page                                                                        */
 /* --------------------------------------------------------------------------- */
 
 export default function HomePage() {
+  const [index, setIndex] = useState<Listing[]>(SEED_LISTINGS);
+  const [query, setQuery] = useState("");
+  const [committed, setCommitted] = useState("");
+  const [showPublish, setShowPublish] = useState(false);
+  const [pTitle, setPTitle] = useState("");
+  const [pTags, setPTags] = useState("");
+  const [pPrice, setPPrice] = useState("");
+  const [log, setLog] = useState<string[]>([
+    "SYSTEM@APORT:~$ boot --module=marketplace",
+    "> index ready :: 5 listings :: vector(1536)",
+  ]);
+
+  const view = index.filter((item) => matches(item, committed));
+
+  function print(...lines: string[]) {
+    setLog((prev) => [...prev, ...lines].slice(-8));
+  }
+
+  function runSearch(e?: FormEvent) {
+    e?.preventDefault();
+    const term = query.trim();
+    setCommitted(term);
+    const count = index.filter((i) => matches(i, term)).length;
+    if (!term) {
+      print("SYSTEM@APORT:~$ search --all", `> reset :: ${index.length} listing(s)`);
+    } else {
+      print(
+        `SYSTEM@APORT:~$ search "${term}"`,
+        `> ${count} match(es) :: cosine rank over local index`,
+      );
+    }
+  }
+
+  function resetSearch() {
+    setQuery("");
+    setCommitted("");
+    print("SYSTEM@APORT:~$ reset", `> ${index.length} listing(s)`);
+  }
+
+  function fetchItem(item: Listing) {
+    print(
+      `SYSTEM@APORT:~$ fetch ${item.id}`,
+      "> payload encrypted :: purchase required → [ BUY_VIA_STRIPE ]",
+    );
+  }
+
+  function buy() {
+    print(
+      "SYSTEM@APORT:~$ buy --gateway=stripe",
+      "> ERR: payment module offline :: scheduled Sprint 2",
+    );
+  }
+
+  function dispute() {
+    print(
+      "SYSTEM@APORT:~$ dispute --open",
+      "> ERR: arbitration module offline :: scheduled Sprint 2",
+    );
+  }
+
+  function submitPublish(e: FormEvent) {
+    e.preventDefault();
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `local-${index.length + 1}`;
+    const tags = (pTags.trim() || "UNTAGGED").toUpperCase();
+    const priceNum = Number(pPrice) || 0;
+    const newItem: Listing = {
+      id,
+      tags,
+      price: `$${priceNum.toFixed(2)}`,
+      reputation: "TRUST_SCORE: 100%",
+    };
+    setIndex((prev) => [newItem, ...prev]);
+    setCommitted("");
+    setQuery("");
+    setShowPublish(false);
+    setPTitle("");
+    setPTags("");
+    setPPrice("");
+    print(
+      `SYSTEM@APORT:~$ publish "${pTitle.trim() || "untitled"}"`,
+      `> indexed ${id}`,
+      "> vector(1536) stored :: trust_score=100 [local]",
+    );
+  }
+
   return (
     <main className="min-h-screen bg-black px-4 py-6 font-mono text-green-500 selection:bg-green-500 selection:text-black sm:px-6 lg:px-10">
       {/* CRT scanline overlay */}
@@ -201,7 +345,7 @@ export default function HomePage() {
         <section className="flex flex-wrap gap-x-6 gap-y-1 py-3 text-[11px] text-green-600">
           {[
             ["NODES_ONLINE", "1,024"],
-            ["ARTICLES_INDEXED", "48,210"],
+            ["ARTICLES_INDEXED", String(48205 + index.length)],
             ["VECTORS", "74.1M"],
             ["EMBED_DIM", "1536"],
             ["PROTOCOL", "A2A/1.0"],
@@ -216,19 +360,41 @@ export default function HomePage() {
 
         {/* ── SEARCH ─────────────────────────────────────────────────── */}
         <section className="py-5">
-          <div className="flex items-center gap-2 border border-green-800 bg-green-950/20 px-3 py-2 text-sm">
+          <form
+            onSubmit={runSearch}
+            className="flex items-center gap-2 border border-green-800 bg-green-950/20 px-3 py-2 text-sm"
+          >
             <span className="shrink-0 text-green-600">SYSTEM@APORT:~$</span>
-            <span className="animate-blink shrink-0 text-green-400">_</span>
+            {!query && (
+              <span className="animate-blink shrink-0 text-green-400">_</span>
+            )}
             <input
               type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
               aria-label="Vector search query"
               placeholder="[ Vector Search Query Here ]"
               className="w-full bg-transparent text-green-200 caret-green-400 outline-none placeholder:text-green-800"
             />
             <RawButton
               label="[ EXEC_QUERY ]"
+              type="submit"
               className="shrink-0 px-2 text-green-300"
             />
+          </form>
+
+          {/* console output */}
+          <div className="mt-2 space-y-0.5 text-xs">
+            {log.map((line, i) => (
+              <div
+                key={`${i}-${line}`}
+                className={
+                  line.startsWith(">") ? "text-green-600" : "text-green-400"
+                }
+              >
+                {line}
+              </div>
+            ))}
           </div>
         </section>
 
@@ -236,12 +402,24 @@ export default function HomePage() {
 
         {/* ── ACTIVE LISTINGS ────────────────────────────────────────── */}
         <section className="py-5">
-          <div className="mb-2 flex items-baseline justify-between text-xs">
+          <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
             <span className="text-green-400">
               {"// ACTIVE_LISTINGS [ market.index ]"}
             </span>
-            <span className="hidden text-green-700 sm:inline">
-              SORT: SIMILARITY ▼
+            <span className="flex items-center gap-3">
+              <span className="text-green-700">
+                {view.length}/{index.length}
+              </span>
+              {committed && (
+                <RawButton
+                  label="[ RESET ]"
+                  onClick={resetSearch}
+                  className="px-1 text-green-400"
+                />
+              )}
+              <span className="hidden text-green-700 sm:inline">
+                SORT: SIMILARITY ▼
+              </span>
             </span>
           </div>
 
@@ -251,16 +429,27 @@ export default function HomePage() {
               <div className="whitespace-pre text-green-400">{TABLE_HEAD}</div>
               <div className="whitespace-pre text-green-700">{TABLE_SEP}</div>
 
-              {LISTINGS.map((item) => (
-                <div
-                  key={item.id}
-                  className="whitespace-pre text-green-300 hover:bg-green-950/40"
-                >
-                  <span>{rowPrefix(item)}</span>
-                  <RawButton label="[ FETCH ]" className="text-green-400" />
-                  <span>{" │"}</span>
+              {view.length === 0 ? (
+                <div className="whitespace-pre text-green-700">
+                  <span>{rowPrefix(EMPTY_ROW)}</span>
+                  <span>{`${" ".repeat(W.action)} │`}</span>
                 </div>
-              ))}
+              ) : (
+                view.map((item) => (
+                  <div
+                    key={item.id}
+                    className="whitespace-pre text-green-300 hover:bg-green-950/40"
+                  >
+                    <span>{rowPrefix(item)}</span>
+                    <RawButton
+                      label="[ FETCH ]"
+                      onClick={() => fetchItem(item)}
+                      className="text-green-400"
+                    />
+                    <span>{" │"}</span>
+                  </div>
+                ))
+              )}
 
               <div className="whitespace-pre text-green-700">{TABLE_BOT}</div>
             </div>
@@ -270,11 +459,69 @@ export default function HomePage() {
         <AsciiRule char="─" />
 
         {/* ── AGENT ACTIONS ──────────────────────────────────────────── */}
-        <section className="flex flex-wrap items-center gap-x-6 gap-y-2 py-5 text-sm">
-          <span className="text-green-700">{"// AGENT_ACTIONS:"}</span>
-          <RawButton label="[ PUBLISH ]" className="px-2 text-green-300" />
-          <RawButton label="[ BUY_VIA_STRIPE ]" className="px-2 text-green-300" />
-          <RawButton label="[ DISPUTE ]" className="px-2 text-green-300" />
+        <section className="py-5 text-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <span className="text-green-700">{"// AGENT_ACTIONS:"}</span>
+            <RawButton
+              label={showPublish ? "[ PUBLISH ▼ ]" : "[ PUBLISH ]"}
+              onClick={() => setShowPublish((v) => !v)}
+              className="px-2 text-green-300"
+            />
+            <RawButton
+              label="[ BUY_VIA_STRIPE ]"
+              onClick={buy}
+              className="px-2 text-green-300"
+            />
+            <RawButton
+              label="[ DISPUTE ]"
+              onClick={dispute}
+              className="px-2 text-green-300"
+            />
+          </div>
+
+          {showPublish && (
+            <form
+              onSubmit={submitPublish}
+              className="mt-4 max-w-xl border border-green-800 bg-green-950/20 p-3 text-xs"
+            >
+              <p className="mb-3 text-green-600">
+                {"// NEW_LISTING :: publish to market.index"}
+              </p>
+              <div className="flex flex-col gap-2">
+                <Field
+                  label="TITLE........"
+                  value={pTitle}
+                  onChange={setPTitle}
+                  placeholder="BTC on-chain flows, weekly"
+                />
+                <Field
+                  label="METADATA_TAGS"
+                  value={pTags}
+                  onChange={setPTags}
+                  placeholder="MARKET//BTC//FLOW"
+                />
+                <Field
+                  label="PRICE_USD...."
+                  value={pPrice}
+                  onChange={setPPrice}
+                  placeholder="5.00"
+                  type="number"
+                />
+              </div>
+              <div className="mt-4 flex gap-5">
+                <RawButton
+                  label="[ SUBMIT ]"
+                  type="submit"
+                  className="px-2 text-green-300"
+                />
+                <RawButton
+                  label="[ CANCEL ]"
+                  onClick={() => setShowPublish(false)}
+                  className="px-2 text-green-600"
+                />
+              </div>
+            </form>
+          )}
         </section>
 
         <AsciiRule char="═" className="text-green-700" />
