@@ -1,0 +1,167 @@
+/**
+ * Supabase database types for A-port.
+ *
+ * Hand-authored to mirror `supabase/migrations/0001_init.sql`. Once the project
+ * is linked you can regenerate this file with:
+ *
+ *   supabase gen types typescript --linked > src/types/database.types.ts
+ *
+ * Note: pgvector columns are serialised as strings over PostgREST (the
+ * `[0.1,0.2,...]` literal), which is why `embedding` is typed as `string`.
+ */
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+export type UserRole = "author" | "buyer" | "arbitrator";
+
+export interface Database {
+  public: {
+    Tables: {
+      users: {
+        Row: {
+          id: string;
+          stripe_id: string | null;
+          role: UserRole;
+          trust_score: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          stripe_id?: string | null;
+          role?: UserRole;
+          trust_score?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          stripe_id?: string | null;
+          role?: UserRole;
+          trust_score?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      articles: {
+        Row: {
+          id: string;
+          author_id: string;
+          title: string;
+          description: string;
+          body_encrypted: string;
+          price_usd: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          author_id: string;
+          title: string;
+          description: string;
+          body_encrypted: string;
+          price_usd?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          author_id?: string;
+          title?: string;
+          description?: string;
+          body_encrypted?: string;
+          price_usd?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "articles_author_id_fkey";
+            columns: ["author_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      embeddings: {
+        Row: {
+          id: string;
+          article_id: string;
+          /** pgvector(1536) serialised as a `[..]` literal string. */
+          embedding: string;
+        };
+        Insert: {
+          id?: string;
+          article_id: string;
+          embedding: string;
+        };
+        Update: {
+          id?: string;
+          article_id?: string;
+          embedding?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "embeddings_article_id_fkey";
+            columns: ["article_id"];
+            referencedRelation: "articles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      publish_article: {
+        Args: {
+          p_author_id: string;
+          p_title: string;
+          p_description: string;
+          p_body: string;
+          p_price_usd: number;
+          p_embedding: string;
+        };
+        Returns: string;
+      };
+      match_articles: {
+        Args: {
+          query_embedding: string;
+          match_threshold: number;
+          match_count: number;
+        };
+        Returns: {
+          id: string;
+          author_id: string;
+          title: string;
+          description: string;
+          price_usd: number;
+          created_at: string;
+          similarity: number;
+        }[];
+      };
+    };
+    Enums: {
+      user_role: UserRole;
+    };
+    CompositeTypes: Record<string, never>;
+  };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Convenience aliases                                                       */
+/* ------------------------------------------------------------------------- */
+
+export type Tables<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Row"];
+
+export type TablesInsert<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Insert"];
+
+export type FunctionReturns<T extends keyof Database["public"]["Functions"]> =
+  Database["public"]["Functions"][T]["Returns"];
+
+export type UserRow = Tables<"users">;
+export type ArticleRow = Tables<"articles">;
+export type EmbeddingRow = Tables<"embeddings">;
+export type MatchedArticle = FunctionReturns<"match_articles">[number];
