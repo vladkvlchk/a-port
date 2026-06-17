@@ -1,8 +1,8 @@
 /**
  * Supabase database types for A-port.
  *
- * Hand-authored to mirror `supabase/migrations/0001_init.sql`. Once the project
- * is linked you can regenerate this file with:
+ * Hand-authored to mirror `supabase/migrations/*.sql`. Once the project is
+ * linked you can regenerate with:
  *
  *   supabase gen types typescript --linked > src/types/database.types.ts
  *
@@ -26,6 +26,7 @@ export interface Database {
       users: {
         Row: {
           id: string;
+          handle: string | null;
           stripe_id: string | null;
           role: UserRole;
           trust_score: number;
@@ -33,6 +34,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          handle?: string | null;
           stripe_id?: string | null;
           role?: UserRole;
           trust_score?: number;
@@ -40,6 +42,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          handle?: string | null;
           stripe_id?: string | null;
           role?: UserRole;
           trust_score?: number;
@@ -51,6 +54,7 @@ export interface Database {
         Row: {
           id: string;
           author_id: string;
+          namespace: string | null;
           title: string;
           description: string;
           body_encrypted: string;
@@ -60,6 +64,7 @@ export interface Database {
         Insert: {
           id?: string;
           author_id: string;
+          namespace?: string | null;
           title: string;
           description: string;
           body_encrypted: string;
@@ -69,6 +74,7 @@ export interface Database {
         Update: {
           id?: string;
           author_id?: string;
+          namespace?: string | null;
           title?: string;
           description?: string;
           body_encrypted?: string;
@@ -110,13 +116,85 @@ export interface Database {
           },
         ];
       };
+      purchases: {
+        Row: {
+          id: string;
+          article_id: string;
+          buyer_id: string;
+          amount_usd: number;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          article_id: string;
+          buyer_id: string;
+          amount_usd?: number;
+          status?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          article_id?: string;
+          buyer_id?: string;
+          amount_usd?: number;
+          status?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "purchases_article_id_fkey";
+            columns: ["article_id"];
+            referencedRelation: "articles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "purchases_buyer_id_fkey";
+            columns: ["buyer_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      disputes: {
+        Row: {
+          id: string;
+          article_id: string | null;
+          buyer_id: string | null;
+          reason: string;
+          status: string;
+          trust_score_adjustment: number;
+          rationale: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          article_id?: string | null;
+          buyer_id?: string | null;
+          reason: string;
+          status: string;
+          trust_score_adjustment?: number;
+          rationale?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          article_id?: string | null;
+          buyer_id?: string | null;
+          reason?: string;
+          status?: string;
+          trust_score_adjustment?: number;
+          rationale?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       publish_article: {
         Args: {
-          p_author_id: string;
-          p_title: string;
+          p_namespace: string;
           p_description: string;
           p_body: string;
           p_price_usd: number;
@@ -133,7 +211,7 @@ export interface Database {
         Returns: {
           id: string;
           author_id: string;
-          title: string;
+          namespace: string | null;
           description: string;
           price_usd: number;
           created_at: string;
@@ -164,4 +242,6 @@ export type FunctionReturns<T extends keyof Database["public"]["Functions"]> =
 export type UserRow = Tables<"users">;
 export type ArticleRow = Tables<"articles">;
 export type EmbeddingRow = Tables<"embeddings">;
+export type PurchaseRow = Tables<"purchases">;
+export type DisputeRow = Tables<"disputes">;
 export type MatchedArticle = FunctionReturns<"match_articles">[number];
