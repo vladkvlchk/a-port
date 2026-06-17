@@ -4,6 +4,8 @@
    Raw, brutalist, monochrome terminal. Pure data, no human-centric chrome.
    =========================================================================== */
 
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+
 // ANSI-shadow ASCII banner for "A-PORT" (the dash is the central block bar).
 const LOGO = ` █████╗       ██████╗  ██████╗ ██████╗ ████████╗
 ██╔══██╗      ██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝
@@ -144,9 +146,12 @@ export default function HomePage() {
         className="pointer-events-none fixed inset-0 z-50 opacity-[0.06]"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(0deg, #22c55e 0px, #22c55e 1px, transparent 1px, transparent 3px)",
+            "repeating-linear-gradient(0deg, var(--color-green-500) 0px, var(--color-green-500) 1px, transparent 1px, transparent 3px)",
         }}
       />
+
+      {/* Terminal theme switcher (palettes in globals.css, default: mono). */}
+      <ThemeSwitcher />
 
       <div className="mx-auto max-w-6xl">
         <h1 className="sr-only">A-PORT — A2A Knowledge Cognitive Router</h1>
