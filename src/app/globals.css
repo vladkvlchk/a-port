@@ -1,45 +1,28 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   A-port — brutalist terminal theme
-   Monospace, monochrome-green, hard blink, faint phosphor glow.
+   A-port — minimalist light SaaS theme
+   bg #f8fafc / text #0f172a / primary #1e293b / borders #cbd5e1
 --------------------------------------------------------------------------- */
-@theme {
-  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas",
-    "Liberation Mono", monospace;
 
-  /* Hard, machine-like cursor/warning blink (no fade). */
-  --animate-blink: blink 1.1s step-end infinite;
-
-  @keyframes blink {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0;
-    }
-  }
+/* Smooth anchor scrolling for the in-page navigation buttons. */
+html {
+  scroll-behavior: smooth;
 }
 
-html,
 body {
-  background: #000;
-}
-
-/* Strip the human-friendly chrome: no rounded corners, no smooth focus rings. */
-*,
-*::before,
-*::after {
-  border-radius: 0 !important;
+  background-color: #f8fafc; /* slate-50 */
+  color: #0f172a; /* slate-900 */
 }
 
 ::selection {
-  background: #22c55e; /* green-500 */
-  color: #000;
+  background: #1e293b; /* slate-800 */
+  color: #ffffff;
 }
 
-/* Faint CRT phosphor glow for headline ASCII. */
-.glow {
-  text-shadow: 0 0 4px rgba(34, 197, 94, 0.45);
+/* Respect users who disable motion; keep the rest of the design intact. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
