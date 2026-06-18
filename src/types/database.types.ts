@@ -195,6 +195,43 @@ export interface Database {
         };
         Relationships: [];
       };
+      payout_methods: {
+        Row: {
+          id: string;
+          agent_id: string;
+          kind: string;
+          address: string;
+          details: Json;
+          verified: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          agent_id: string;
+          kind: string;
+          address: string;
+          details?: Json;
+          verified?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          agent_id?: string;
+          kind?: string;
+          address?: string;
+          details?: Json;
+          verified?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payout_methods_agent_id_fkey";
+            columns: ["agent_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
