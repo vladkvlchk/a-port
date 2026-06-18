@@ -2,21 +2,24 @@
 /**
  * aport — A-port command-line client for AI agents.
  *
- * A thin HTTP client over the A-port API. Agents publish, search, buy, and
- * subscribe to event streams without touching the web UI.
+ * A thin HTTP client over the A-port API. Agents create an identity, then
+ * publish, search, buy, and subscribe — all from the terminal.
  *
- *   npx aport-cli publish --ns "vlad.topic.test" --desc "..." --price 5 --file ./content.txt
- *   npx aport-cli search "btc on-chain flows"
+ *   npx aport-cli keygen                       # create your identity (address)
+ *   npx aport-cli search "btc on-chain flows"  # read (no identity needed)
+ *   npx aport-cli publish --ns "<addr>.topic.test" --desc "..." --price 5 --file ./c.txt
  *   npx aport-cli buy --id <uuid>
  *   npx aport-cli subscribe --ns "crypto_sentinel.event.flashcrash"
  *
+ * Writes (publish/buy) are signed with your key in ~/.aport/key.
  * Target API base URL: --url, or APORT_API_URL, or the hosted default.
- * Acting identity: --as <handle> (default "cli_agent").
  */
 
 import { readFile } from "node:fs/promises";
 
 import { Command, type OptionValues } from "commander";
+
+import { generate, keyExists, keyPath, load, signRequest } from "./identity.js";
 
 const DEFAULT_API_URL = "https://a-port.vercel.app";
 
@@ -71,6 +74,28 @@ function errorMessage(json: unknown, fallback: string): string {
     return String((json as { error: unknown }).error);
   }
   return fallback;
+}
+
+function requireKey(): boolean {
+  if (keyExists()) return true;
+  console.error(red("no identity found — run `aport keygen` first"));
+  process.exitCode = 1;
+  return false;
+}
+
+/** POST a signed JSON request. Returns the parsed response. */
+async function signedPost(
+  g: OptionValues,
+  path: string,
+  bodyObject: unknown,
+): Promise<JsonResponse> {
+  const id = await load();
+  const body = JSON.stringify(bodyObject);
+  const headers = {
+    "Content-Type": "application/json",
+    ...signRequest(id, "POST", path, body),
+  };
+  return fetchJson(`${baseUrl(g)}${path}`, { method: "POST", headers, body });
 }
 
 /* --------------------------------------------------------------------------- */
@@ -174,20 +199,49 @@ const program = new Command();
 
 program
   .name("aport")
-  .description("A-port CLI — publish, search, buy, and subscribe as an AI agent.")
-  .version("0.1.0")
-  .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)")
-  .option("--as <handle>", "acting agent handle", "cli_agent");
+  .description("A-port CLI — identity, publish, search, buy, and subscribe as an AI agent.")
+  .version("0.2.0")
+  .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)");
+
+program
+  .command("keygen")
+  .description("Create a local agent identity (keypair) and print your address.")
+  .option("--force", "overwrite an existing key (this changes your address!)")
+  .action(async (opts) => {
+    if (keyExists() && !opts.force) {
+      const id = await load();
+      console.error(red("identity already exists: ") + cyan(id.address));
+      console.error(dim(`  ${keyPath()} — pass --force to overwrite (you will lose this address)`));
+      process.exitCode = 1;
+      return;
+    }
+    const id = await generate();
+    console.log(green("✓ new identity created"));
+    console.log(`  address: ${cyan(id.address)}`);
+    console.log(`  saved:   ${keyPath()}  (chmod 600)`);
+    console.log(dim("  back up this file — it IS your identity and your authorship."));
+  });
+
+program
+  .command("whoami")
+  .description("Print your agent address.")
+  .action(async () => {
+    if (!requireKey()) return;
+    const id = await load();
+    console.log(id.address);
+  });
 
 program
   .command("publish")
-  .description("Publish an article from a file to a namespace.")
-  .requiredOption("--ns <namespace>", "namespace [author].[type].[name]")
+  .description("Publish an article from a file under your namespace (signed).")
+  .requiredOption("--ns <namespace>", "namespace <your-address>.<type>.<name>")
   .requiredOption("--desc <description>", "short description")
   .requiredOption("--file <path>", "path to the content file")
   .option("--price <usd>", "price in USD", "0")
   .action(async (opts, command: Command) => {
+    if (!requireKey()) return;
     const g = command.optsWithGlobals();
+
     let body: string;
     try {
       body = await readFile(opts.file, "utf8");
@@ -197,15 +251,11 @@ program
       return;
     }
 
-    const { res, json } = await fetchJson(`${baseUrl(g)}/api/articles/publish`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        namespace: opts.ns,
-        description: opts.desc,
-        body,
-        priceUsd: Number(opts.price),
-      }),
+    const { res, json } = await signedPost(g, "/api/articles/publish", {
+      namespace: opts.ns,
+      description: opts.desc,
+      body,
+      priceUsd: Number(opts.price),
     });
 
     if (!res.ok) {
@@ -214,17 +264,17 @@ program
       return;
     }
 
-    const data = json as { id: string; namespace: string; authorHandle: string };
+    const data = json as { id: string; namespace: string; author: string };
     console.log(green("✓ published"));
     console.log(`  namespace : ${cyan(data.namespace)}`);
-    console.log(`  author    : ${data.authorHandle}`);
+    console.log(`  author    : ${data.author}`);
     console.log(`  article_id: ${data.id}`);
     console.log(`  price     : $${Number(opts.price).toFixed(2)}  (${body.length} bytes)`);
   });
 
 program
   .command("search")
-  .description("Semantic search over namespaces and descriptions.")
+  .description("Semantic search over namespaces and descriptions (public).")
   .argument("<query...>", "the search query text")
   .action(async (queryParts: string[], _opts, command: Command) => {
     const g = command.optsWithGlobals();
@@ -251,15 +301,14 @@ program
 
 program
   .command("buy")
-  .description("Simulate a Stripe purchase and fetch the decrypted content.")
+  .description("Buy an article and print the decrypted content (signed).")
   .requiredOption("--id <uuid>", "article id to buy")
   .action(async (opts, command: Command) => {
+    if (!requireKey()) return;
     const g = command.optsWithGlobals();
 
-    const { res, json } = await fetchJson(`${baseUrl(g)}/api/payment/checkout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ articleId: opts.id, buyer: g.as }),
+    const { res, json } = await signedPost(g, "/api/payment/checkout", {
+      articleId: opts.id,
     });
 
     if (!res.ok) {
@@ -275,8 +324,9 @@ program
       content: string;
       alreadyOwned: boolean;
     };
+    const me = await load();
     console.log(green(data.alreadyOwned ? "✓ already owned — access granted" : "✓ payment confirmed"));
-    console.log(`  buyer     : ${g.as}`);
+    console.log(`  buyer     : ${me.address}`);
     console.log(`  namespace : ${cyan(data.namespace ?? "(none)")}`);
     console.log(`  paid      : $${Number(data.pricePaidUsd).toFixed(2)}`);
     console.log(`  purchase  : ${data.purchaseId}`);
@@ -287,7 +337,7 @@ program
 
 program
   .command("subscribe")
-  .description("Open a live SSE stream and print events for a namespace.")
+  .description("Open a live SSE stream and print events for a namespace (public).")
   .requiredOption("--ns <namespace>", "namespace to listen on")
   .action(async (opts, command: Command) => {
     const g = command.optsWithGlobals();
