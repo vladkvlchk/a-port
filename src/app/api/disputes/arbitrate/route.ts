@@ -1,27 +1,28 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { authenticate, AuthError } from "@/lib/auth";
 import { arbitrateDispute } from "@/lib/llm";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { isUuid } from "@/lib/users.service";
+import { isUuid, resolveAccountByAddress } from "@/lib/users.service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const arbitrateSchema = z.object({
   articleId: z.string().trim().min(1, "articleId is required"),
-  buyerId: z.string().trim().min(1, "buyerId is required"),
   reason: z.string().trim().min(1, "reason is required").max(4000),
   buyerChainOfThought: z.string().trim().min(1).max(8000),
 });
 
 /**
- * Persist the verdict and apply the trust-score penalty. Best-effort: a missing
- * article/buyer must not fail the (already-computed) verdict response.
+ * Persist the verdict and apply the trust-score penalty. Best-effort: a DB
+ * failure (e.g. Supabase not configured) must not fail the verdict response.
  */
 async function persistVerdict(args: {
   articleId: string;
-  buyerId: string;
+  buyerAddress: string;
+  buyerPublicKey: string;
   reason: string;
   status: string;
   adjustment: number;
@@ -29,56 +30,60 @@ async function persistVerdict(args: {
 }): Promise<void> {
   const supabase = getSupabaseAdmin();
 
-  const articleId = isUuid(args.articleId) ? args.articleId : null;
-  let buyerUuid: string | null = isUuid(args.buyerId) ? args.buyerId : null;
-
-  if (!buyerUuid) {
-    const { data } = await supabase
-      .from("users")
-      .select("id")
-      .eq("handle", args.buyerId)
-      .maybeSingle();
-    buyerUuid = data?.id ?? null;
-  }
+  const buyerId = await resolveAccountByAddress(
+    supabase,
+    args.buyerAddress,
+    args.buyerPublicKey,
+    "buyer",
+  );
 
   await supabase.from("disputes").insert({
-    article_id: articleId,
-    buyer_id: buyerUuid,
+    article_id: isUuid(args.articleId) ? args.articleId : null,
+    buyer_id: buyerId,
     reason: args.reason,
     status: args.status,
     trust_score_adjustment: args.adjustment,
     rationale: args.rationale,
   });
 
-  if (buyerUuid && args.adjustment !== 0) {
+  if (args.adjustment !== 0) {
     const { data: user } = await supabase
       .from("users")
       .select("trust_score")
-      .eq("id", buyerUuid)
+      .eq("id", buyerId)
       .maybeSingle();
     if (user) {
       await supabase
         .from("users")
         .update({ trust_score: user.trust_score + args.adjustment })
-        .eq("id", buyerUuid);
+        .eq("id", buyerId);
     }
   }
 }
 
 /**
- * POST /api/disputes/arbitrate
- * Body: { articleId, buyerId, reason, buyerChainOfThought }
- * -> 200 { status: 'REJECTED_FRAUD_DETECTED' | 'REFUNDED', trustScoreAdjustment, rationale, provider }
+ * POST /api/disputes/arbitrate   (signed)
+ * Body: { articleId, reason, buyerChainOfThought }  — buyer = the signer.
+ * -> 200 { status, trustScoreAdjustment, rationale, provider }
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  const rawBody = await request.text();
+
+  let auth;
+  try {
+    auth = await authenticate(request, rawBody);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    throw error;
+  }
+
   let payload: unknown;
   try {
-    payload = await request.json();
+    payload = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json(
-      { error: "Request body must be valid JSON." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
 
   const parsed = arbitrateSchema.safeParse(payload);
@@ -90,14 +95,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const verdict = await arbitrateDispute(parsed.data);
+    const verdict = await arbitrateDispute({
+      articleId: parsed.data.articleId,
+      buyerId: auth.address,
+      reason: parsed.data.reason,
+      buyerChainOfThought: parsed.data.buyerChainOfThought,
+    });
 
-    // Persistence is best-effort — the verdict stands even if the DB write fails
-    // (e.g. Supabase not configured, or unknown article/buyer).
     try {
       await persistVerdict({
         articleId: parsed.data.articleId,
-        buyerId: parsed.data.buyerId,
+        buyerAddress: auth.address,
+        buyerPublicKey: auth.publicKey,
         reason: parsed.data.reason,
         status: verdict.status,
         adjustment: verdict.trustScoreAdjustment,
@@ -118,9 +127,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   } catch (error) {
     console.error("[POST /api/disputes/arbitrate]", error);
-    return NextResponse.json(
-      { error: "Arbitration failed." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Arbitration failed." }, { status: 500 });
   }
 }

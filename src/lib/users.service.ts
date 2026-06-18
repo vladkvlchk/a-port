@@ -19,6 +19,37 @@ export function isUuid(value: string): boolean {
 }
 
 /**
+ * Resolve a cryptographic identity (aport1 address) to a `users.id`,
+ * self-registering the account on first contact. Lazy — no role clobber: an
+ * existing account keeps its role; a new one is created with `role`.
+ */
+export async function resolveAccountByAddress(
+  supabase: SupabaseClient<Database>,
+  address: string,
+  publicKey: string,
+  role: UserRole = "author",
+): Promise<string> {
+  const { data: existing } = await supabase
+    .from("users")
+    .select("id")
+    .eq("address", address)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const { data, error } = await supabase
+    .from("users")
+    .insert({ address, public_key: publicKey, role })
+    .select("id")
+    .single();
+  if (error || !data) {
+    throw new Error(
+      `Failed to register account ${address}: ${error?.message ?? "no row returned"}`,
+    );
+  }
+  return data.id;
+}
+
+/**
  * Resolve an identity (UUID or handle) to a `users.id`.
  * - UUID that exists → that id.
  * - Otherwise treat as a handle → upsert and return the id.

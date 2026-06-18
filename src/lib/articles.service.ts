@@ -8,6 +8,7 @@
 
 import { createEmbedding, toPgVector } from "@/lib/embeddings";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { resolveAccountByAddress } from "@/lib/users.service";
 
 /** Top-N results returned by search. */
 export const DEFAULT_MATCH_COUNT = 5;
@@ -19,8 +20,12 @@ export const DEFAULT_MATCH_COUNT = 5;
  */
 export const DEFAULT_MATCH_THRESHOLD = 0.0;
 
-/** `[author].[type].[name]` — lowercase segments of letters/digits/_/-. */
-export const NAMESPACE_PATTERN = /^[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+$/;
+/** An agent address: `aport1` + base58 payload. */
+export const ADDRESS_PATTERN = /^aport1[1-9A-HJ-NP-Za-km-z]+$/;
+
+/** `[address].[type].[name]` — the head must be the author's own address. */
+export const NAMESPACE_PATTERN =
+  /^aport1[1-9A-HJ-NP-Za-km-z]+\.[a-z0-9_-]+\.[a-z0-9_-]+$/;
 
 export class NamespaceTakenError extends Error {
   constructor(public readonly namespace: string) {
@@ -30,6 +35,10 @@ export class NamespaceTakenError extends Error {
 }
 
 export interface PublishArticleInput {
+  /** Verified signer address (aport1…) — becomes the author. */
+  address: string;
+  /** Verified signer public key (base64url). */
+  publicKey: string;
   namespace: string;
   description: string;
   body: string;
@@ -39,7 +48,7 @@ export interface PublishArticleInput {
 export interface PublishArticleResult {
   id: string;
   namespace: string;
-  authorHandle: string;
+  author: string;
 }
 
 export interface ArticleSearchResult {
@@ -61,9 +70,18 @@ export async function publishArticle(
 ): Promise<PublishArticleResult> {
   const supabase = getSupabaseAdmin();
 
+  // Lazily register the signer's account, then bind authorship to it.
+  const authorId = await resolveAccountByAddress(
+    supabase,
+    input.address,
+    input.publicKey,
+    "author",
+  );
+
   const embedding = await createEmbedding(`${input.namespace} ${input.description}`);
 
   const { data, error } = await supabase.rpc("publish_article", {
+    p_author_id: authorId,
     p_namespace: input.namespace,
     p_description: input.description,
     p_body: input.body,
@@ -81,11 +99,7 @@ export async function publishArticle(
     throw new Error("Failed to publish article: no id returned from database.");
   }
 
-  return {
-    id: data,
-    namespace: input.namespace,
-    authorHandle: input.namespace.split(".")[0] ?? "",
-  };
+  return { id: data, namespace: input.namespace, author: input.address };
 }
 
 /**

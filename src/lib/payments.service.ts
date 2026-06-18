@@ -8,7 +8,7 @@
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { resolveUserId } from "@/lib/users.service";
+import { resolveAccountByAddress } from "@/lib/users.service";
 
 export class ArticleNotFoundError extends Error {
   constructor(public readonly articleId: string) {
@@ -19,8 +19,10 @@ export class ArticleNotFoundError extends Error {
 
 export interface CheckoutInput {
   articleId: string;
-  /** Buyer identity: a handle (preferred) or a user UUID. */
-  buyer: string;
+  /** Verified buyer address (aport1…). */
+  address: string;
+  /** Verified buyer public key (base64url). */
+  publicKey: string;
 }
 
 export interface CheckoutResult {
@@ -55,7 +57,12 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     throw new ArticleNotFoundError(input.articleId);
   }
 
-  const buyerId = await resolveUserId(supabase, input.buyer, "buyer");
+  const buyerId = await resolveAccountByAddress(
+    supabase,
+    input.address,
+    input.publicKey,
+    "buyer",
+  );
 
   confirmPayment(article.price_usd);
 
