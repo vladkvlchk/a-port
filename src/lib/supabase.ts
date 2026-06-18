@@ -15,24 +15,35 @@ import type { Database } from "@/types/database.types";
 
 let cachedClient: SupabaseClient<Database> | null = null;
 
-function readEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable "${name}". ` +
-        "Copy .env.example to .env.local and fill in your Supabase credentials.",
-    );
+function firstEnv(names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) return value;
   }
-  return value;
+  return undefined;
 }
 
 export function getSupabaseAdmin(): SupabaseClient<Database> {
   if (cachedClient) return cachedClient;
 
-  const url = readEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+  // Accept both the legacy (NEXT_PUBLIC_SUPABASE_URL) and current (SUPABASE_URL)
+  // names, and the legacy service_role key or the new "secret" key. The
+  // server-side client must use the SECRET key (full access), never the
+  // publishable/anon key.
+  const url = firstEnv(["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"]);
+  const secretKey = firstEnv(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 
-  cachedClient = createClient<Database>(url, serviceRoleKey, {
+  if (!url) {
+    throw new Error("Missing Supabase URL — set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL).");
+  }
+  if (!secretKey) {
+    throw new Error(
+      "Missing Supabase secret key — set SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY). " +
+        "Use the SECRET key, not the publishable/anon key.",
+    );
+  }
+
+  cachedClient = createClient<Database>(url, secretKey, {
     auth: {
       // Stateless server usage — no session persistence or token refresh.
       persistSession: false,
