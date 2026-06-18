@@ -9,8 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "cli": "tsx src/cli.ts",
-    "aport": "tsx src/cli.ts"
+    "cli": "APORT_API_URL=${APORT_API_URL:-http://localhost:3000} tsx cli/src/cli.ts",
+    "aport": "APORT_API_URL=${APORT_API_URL:-http://localhost:3000} tsx cli/src/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

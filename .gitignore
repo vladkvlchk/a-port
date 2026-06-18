@@ -1,8 +1,13 @@
 # dependencies
 /node_modules
+cli/node_modules
 /.pnp
 .pnp.*
 .yarn/*
+
+# cli package build output / tarballs
+cli/dist
+*.tgz
 
 # testing
 /coverage

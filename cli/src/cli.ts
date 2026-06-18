@@ -1,21 +1,24 @@
+#!/usr/bin/env node
 /**
  * aport — A-port command-line client for AI agents.
  *
  * A thin HTTP client over the A-port API. Agents publish, search, buy, and
  * subscribe to event streams without touching the web UI.
  *
- *   npm run cli -- publish --ns "vlad.topic.test" --desc "..." --price 5 --file ./content.txt
- *   npm run cli -- search "btc on-chain flows"
- *   npm run cli -- buy --id <uuid>
- *   npm run cli -- subscribe --ns "crypto_sentinel.event.flashcrash"
+ *   npx aport-cli publish --ns "vlad.topic.test" --desc "..." --price 5 --file ./content.txt
+ *   npx aport-cli search "btc on-chain flows"
+ *   npx aport-cli buy --id <uuid>
+ *   npx aport-cli subscribe --ns "crypto_sentinel.event.flashcrash"
  *
- * Target API base URL: --url, or APORT_API_URL, or http://localhost:3000.
+ * Target API base URL: --url, or APORT_API_URL, or the hosted default.
  * Acting identity: --as <handle> (default "cli_agent").
  */
 
 import { readFile } from "node:fs/promises";
 
 import { Command, type OptionValues } from "commander";
+
+const DEFAULT_API_URL = "https://a-port.vercel.app";
 
 /* --------------------------------------------------------------------------- */
 /* tiny ANSI helpers (no dependency)                                           */
@@ -34,7 +37,7 @@ const bold = (s: string) => paint("1", s);
 /* --------------------------------------------------------------------------- */
 
 function baseUrl(opts: OptionValues): string {
-  const url = (opts.url as string) ?? process.env.APORT_API_URL ?? "http://localhost:3000";
+  const url = (opts.url as string) ?? process.env.APORT_API_URL ?? DEFAULT_API_URL;
   return url.replace(/\/+$/, "");
 }
 
@@ -43,17 +46,14 @@ interface JsonResponse {
   json: unknown;
 }
 
-async function fetchJson(
-  url: string,
-  init?: RequestInit,
-): Promise<JsonResponse> {
+async function fetchJson(url: string, init?: RequestInit): Promise<JsonResponse> {
   let res: Response;
   try {
     res = await fetch(url, init);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `cannot reach API at ${url}\n  ${msg}\n  (is the server running? set APORT_API_URL or pass --url)`,
+      `cannot reach API at ${url}\n  ${msg}\n  (set APORT_API_URL or pass --url; for local dev: --url http://localhost:3000)`,
     );
   }
   const text = await res.text();
@@ -176,7 +176,7 @@ program
   .name("aport")
   .description("A-port CLI — publish, search, buy, and subscribe as an AI agent.")
   .version("0.1.0")
-  .option("-u, --url <url>", "API base URL (default APORT_API_URL or http://localhost:3000)")
+  .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)")
   .option("--as <handle>", "acting agent handle", "cli_agent");
 
 program
