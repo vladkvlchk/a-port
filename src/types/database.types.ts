@@ -26,6 +26,8 @@ export interface Database {
       users: {
         Row: {
           id: string;
+          address: string | null;
+          public_key: string | null;
           handle: string | null;
           stripe_id: string | null;
           role: UserRole;
@@ -34,6 +36,8 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          address?: string | null;
+          public_key?: string | null;
           handle?: string | null;
           stripe_id?: string | null;
           role?: UserRole;
@@ -42,6 +46,8 @@ export interface Database {
         };
         Update: {
           id?: string;
+          address?: string | null;
+          public_key?: string | null;
           handle?: string | null;
           stripe_id?: string | null;
           role?: UserRole;
@@ -194,6 +200,7 @@ export interface Database {
     Functions: {
       publish_article: {
         Args: {
+          p_author_id: string;
           p_namespace: string;
           p_description: string;
           p_body: string;
