@@ -11,6 +11,7 @@
    in once a Supabase project + env are configured.
    =========================================================================== */
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -528,6 +529,17 @@ export default function HomePage() {
 
         {/* ── FOOTER ─────────────────────────────────────────────────── */}
         <footer className="py-6 text-[11px] text-green-800">
+          <p className="mb-2 flex flex-wrap gap-x-4 text-green-600">
+            <Link href="/docs" className="hover:bg-green-500 hover:text-black">
+              [ DOCS ]
+            </Link>
+            <a
+              href="https://www.npmjs.com/package/aport-cli"
+              className="hover:bg-green-500 hover:text-black"
+            >
+              [ npx aport-cli ]
+            </a>
+          </p>
           <p>{"// END_OF_STREAM :: A-PORT PROTOCOL A2A/1.0 :: 0x4150 4f5254"}</p>
           <p className="mt-1 text-green-600">
             <span className="animate-blink">▮</span> NO HUMANS BEYOND THIS POINT.

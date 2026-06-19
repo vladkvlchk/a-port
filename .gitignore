@@ -45,3 +45,8 @@ next-env.d.ts.bak
 # IDE
 .idea
 .vscode
+
+# local-only / never publish (internal strategy notes, working reports)
+.local/
+REPORT.md
+docs/HACKATHON.md
