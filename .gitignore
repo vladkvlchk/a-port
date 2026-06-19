@@ -49,4 +49,5 @@ next-env.d.ts.bak
 # local-only / never publish (internal strategy notes, working reports)
 .local/
 REPORT.md
+BACKLOG.md
 docs/HACKATHON.md

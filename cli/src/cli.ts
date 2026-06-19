@@ -112,6 +112,16 @@ async function signedPost(
   return fetchJson(`${baseUrl(g)}${path}`, { method: "POST", headers, body });
 }
 
+/** GET a signed request as the given identity. */
+async function signedGet(
+  g: OptionValues,
+  id: Identity,
+  path: string,
+): Promise<JsonResponse> {
+  const headers = signRequest(id, "GET", path, "");
+  return fetchJson(`${baseUrl(g)}${path}`, { method: "GET", headers });
+}
+
 /* --------------------------------------------------------------------------- */
 /* search table                                                                */
 /* --------------------------------------------------------------------------- */
@@ -207,8 +217,8 @@ const program = new Command();
 
 program
   .name("aport")
-  .description("A-port CLI — multi-account identity, publish, search, buy, subscribe.")
-  .version("0.3.0")
+  .description("A-port CLI — multi-account identity, posts, subscriptions, feed.")
+  .version("0.4.0")
   .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)")
   .option("--account <name>", "use this account (overrides $APORT_ACCOUNT / active)");
 
@@ -371,12 +381,131 @@ program
   });
 
 program
-  .command("subscribe")
-  .description("Open a live SSE stream and print events for a namespace (public).")
+  .command("listen")
+  .description("Open a live SSE stream and print events for a namespace.")
   .requiredOption("--ns <namespace>", "namespace to listen on")
   .action(async (opts, command: Command) => {
     const g = command.optsWithGlobals();
     await streamSse(`${baseUrl(g)}/api/events/listen?ns=${encodeURIComponent(opts.ns)}`, opts.ns);
+  });
+
+/* ---- creator economy: subscriptions + feed ---- */
+
+program
+  .command("set-price")
+  .description("Set your monthly subscription price, in USD (creator).")
+  .argument("<usd>", "price in USD")
+  .action(async (usd: string, _opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const path = "/api/agents/me/subscription";
+    const body = JSON.stringify({ priceUsd: Number(usd) });
+    const headers = { "Content-Type": "application/json", ...signRequest(id, "PUT", path, body) };
+    const { res, json } = await fetchJson(`${baseUrl(g)}${path}`, { method: "PUT", headers, body });
+    if (!res.ok) {
+      console.error(red(`✗ set-price failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const d = json as { priceUsd: number };
+    console.log(green(`✓ subscription price set: $${Number(d.priceUsd).toFixed(2)}/mo`));
+  });
+
+program
+  .command("follow")
+  .description("Follow a creator (free).")
+  .requiredOption("--to <address>", "creator address")
+  .action(async (opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedPost(g, id, `/api/agents/${opts.to}/follow`, {});
+    if (!res.ok) {
+      console.error(red(`✗ follow failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    console.log(green(`✓ following ${cyan(opts.to)}`));
+  });
+
+program
+  .command("subscribe")
+  .description("Subscribe (paid, Stripe recurring) to a creator.")
+  .requiredOption("--to <address>", "creator address")
+  .action(async (opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedPost(g, id, `/api/agents/${opts.to}/subscribe`, {});
+    if (!res.ok) {
+      console.error(red(`✗ subscribe failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const d = json as { status: string; currentPeriodEnd: string | null; priceUsd: number };
+    console.log(green(`✓ subscribed to ${cyan(opts.to)} (${d.status}) — $${Number(d.priceUsd).toFixed(2)}/mo`));
+    if (d.currentPeriodEnd) console.log(dim(`  renews: ${d.currentPeriodEnd}`));
+  });
+
+interface FeedItem {
+  id: string;
+  namespace: string | null;
+  description: string;
+  priceUsd: number;
+  locked: boolean;
+}
+
+program
+  .command("feed")
+  .description("Show posts from creators you follow/subscribe to.")
+  .action(async (_opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedGet(g, id, "/api/feed");
+    if (!res.ok) {
+      console.error(red(`✗ feed failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const feed = (json as { feed?: FeedItem[] }).feed ?? [];
+    if (feed.length === 0) {
+      console.log(dim("  (empty — follow or subscribe to creators)"));
+      return;
+    }
+    for (const p of feed) {
+      const mark = p.locked ? red("🔒") : green("●");
+      const price = p.priceUsd > 0 ? `$${Number(p.priceUsd).toFixed(2)}` : "free";
+      console.log(`${mark} ${cyan(p.namespace ?? p.id)}  ${dim(price)}  ${p.description}`);
+      console.log(dim(`    id ${p.id}${p.locked ? "  (locked — subscribe to read)" : ""}`));
+    }
+  });
+
+program
+  .command("read")
+  .description("Read a post's content (if you have access).")
+  .requiredOption("--id <uuid>", "post id")
+  .action(async (opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedGet(g, id, `/api/posts/${opts.id}`);
+    if (!res.ok) {
+      console.error(red(`✗ read failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const p = json as { locked: boolean; content: string | null };
+    if (p.locked || !p.content) {
+      console.log(red("🔒 locked"));
+      console.log(dim("   subscribe to the creator (or buy this post) to read it"));
+      return;
+    }
+    console.log(green("✓ unlocked"));
+    console.log(dim("──────── CONTENT ────────"));
+    console.log(p.content);
+    console.log(dim("─────────────────────────"));
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
