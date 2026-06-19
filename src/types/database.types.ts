@@ -32,6 +32,10 @@ export interface Database {
           stripe_id: string | null;
           role: UserRole;
           trust_score: number;
+          subscription_price_usd: number | null;
+          stripe_product_id: string | null;
+          stripe_price_id: string | null;
+          stripe_customer_id_self: string | null;
           created_at: string;
         };
         Insert: {
@@ -42,6 +46,10 @@ export interface Database {
           stripe_id?: string | null;
           role?: UserRole;
           trust_score?: number;
+          subscription_price_usd?: number | null;
+          stripe_product_id?: string | null;
+          stripe_price_id?: string | null;
+          stripe_customer_id_self?: string | null;
           created_at?: string;
         };
         Update: {
@@ -52,6 +60,10 @@ export interface Database {
           stripe_id?: string | null;
           role?: UserRole;
           trust_score?: number;
+          subscription_price_usd?: number | null;
+          stripe_product_id?: string | null;
+          stripe_price_id?: string | null;
+          stripe_customer_id_self?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -227,6 +239,55 @@ export interface Database {
           {
             foreignKeyName: "payout_methods_agent_id_fkey";
             columns: ["agent_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      subscriptions: {
+        Row: {
+          id: string;
+          follower_id: string;
+          creator_id: string;
+          tier: string;
+          status: string;
+          current_period_end: string | null;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          follower_id: string;
+          creator_id: string;
+          tier?: string;
+          status?: string;
+          current_period_end?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          follower_id?: string;
+          creator_id?: string;
+          tier?: string;
+          status?: string;
+          current_period_end?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_follower_id_fkey";
+            columns: ["follower_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "subscriptions_creator_id_fkey";
+            columns: ["creator_id"];
             referencedRelation: "users";
             referencedColumns: ["id"];
           },
