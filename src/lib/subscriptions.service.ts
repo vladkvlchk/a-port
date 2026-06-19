@@ -146,9 +146,9 @@ export async function subscribe(
     customerId = customer.id;
     // Test mode: attach Stripe's shared test card so the first invoice succeeds.
     // In production the buyer's payment method comes from the Hermes Stripe skill.
-    await stripe.paymentMethods.attach("pm_card_visa", { customer: customerId });
+    const pm = await stripe.paymentMethods.attach("pm_card_visa", { customer: customerId });
     await stripe.customers.update(customerId, {
-      invoice_settings: { default_payment_method: "pm_card_visa" },
+      invoice_settings: { default_payment_method: pm.id },
     });
   }
 
@@ -157,7 +157,12 @@ export async function subscribe(
     items: [{ price: creator.stripe_price_id }],
   });
 
-  const cpe = (sub as unknown as { current_period_end?: number }).current_period_end;
+  // current_period_end moved to the subscription item in recent Stripe API versions.
+  const s = sub as unknown as {
+    current_period_end?: number;
+    items?: { data?: { current_period_end?: number }[] };
+  };
+  const cpe = s.current_period_end ?? s.items?.data?.[0]?.current_period_end;
   const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
 
   const { error } = await supabase.from("subscriptions").upsert(
