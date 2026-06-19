@@ -1,10 +1,12 @@
 /**
- * Agent identity — ed25519 keypair stored locally, address derived from pubkey.
+ * Agent identity — multiple named ed25519 keypairs, switchable.
  *
- *   address = "aport1" + base58( sha256(pubkey)[0..20] )
+ *   ~/.aport/accounts/<name>.key   one PEM key per account
+ *   ~/.aport/active                name of the active account
+ *   ~/.aport/key                   legacy single key (auto-adopted as "default")
  *
- * No blockchain, no registration: the key IS the identity. Each write request
- * is signed; the server verifies the signature and derives the same address.
+ * Which account a command uses:  --account <name>  >  $APORT_ACCOUNT  >  active.
+ * address = "aport1" + base58( sha256(pubkey)[0..20] ).
  */
 
 import {
@@ -16,13 +18,22 @@ import {
   sign,
   type KeyObject,
 } from "node:crypto";
-import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const DIR = join(homedir(), ".aport");
-const KEY_PATH = join(DIR, "key");
+const ACCOUNTS_DIR = join(DIR, "accounts");
+const ACTIVE_FILE = join(DIR, "active");
+const LEGACY_KEY = join(DIR, "key");
 
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -51,34 +62,103 @@ export function addressFromRaw(rawPub: Buffer): string {
 }
 
 export interface Identity {
+  name: string;
   privateKey: KeyObject;
   publicKeyRaw: Buffer;
   address: string;
 }
 
-export function keyPath(): string {
-  return KEY_PATH;
+function keyPathForName(name: string): string {
+  return join(ACCOUNTS_DIR, `${name}.key`);
 }
 
-export function keyExists(): boolean {
-  return existsSync(KEY_PATH);
+export function keyPath(name: string): string {
+  return keyPathForName(name);
 }
 
-export async function generate(): Promise<Identity> {
-  const { privateKey } = generateKeyPairSync("ed25519");
-  await mkdir(DIR, { recursive: true });
-  const pem = privateKey.export({ format: "pem", type: "pkcs8" }) as string;
-  await writeFile(KEY_PATH, pem, { mode: 0o600 });
-  await chmod(KEY_PATH, 0o600);
-  const raw = rawPublicKey(createPublicKey(privateKey));
-  return { privateKey, publicKeyRaw: raw, address: addressFromRaw(raw) };
+/** One-time: adopt a legacy ~/.aport/key as account "default". */
+function bootstrap(): void {
+  if (existsSync(LEGACY_KEY) && !existsSync(keyPathForName("default"))) {
+    mkdirSync(ACCOUNTS_DIR, { recursive: true });
+    copyFileSync(LEGACY_KEY, keyPathForName("default"));
+    chmodSync(keyPathForName("default"), 0o600);
+    if (!existsSync(ACTIVE_FILE)) writeFileSync(ACTIVE_FILE, "default\n");
+  }
 }
 
-export async function load(): Promise<Identity> {
-  const pem = await readFile(KEY_PATH, "utf8");
+export function listAccountNames(): string[] {
+  bootstrap();
+  if (!existsSync(ACCOUNTS_DIR)) return [];
+  return readdirSync(ACCOUNTS_DIR)
+    .filter((f) => f.endsWith(".key"))
+    .map((f) => f.slice(0, -4))
+    .sort();
+}
+
+export function accountExists(name: string): boolean {
+  return existsSync(keyPathForName(name));
+}
+
+export function getActiveName(): string | null {
+  if (existsSync(ACTIVE_FILE)) {
+    const n = readFileSync(ACTIVE_FILE, "utf8").trim();
+    if (n) return n;
+  }
+  return null;
+}
+
+export function setActive(name: string): void {
+  if (!accountExists(name)) throw new Error(`account "${name}" not found`);
+  mkdirSync(DIR, { recursive: true });
+  writeFileSync(ACTIVE_FILE, name + "\n");
+}
+
+/** Resolve which account name to use. */
+export function resolveAccountName(explicit?: string): string | null {
+  bootstrap();
+  return (
+    explicit ??
+    (process.env.APORT_ACCOUNT || undefined) ??
+    getActiveName() ??
+    (accountExists("default") ? "default" : null)
+  );
+}
+
+function loadFromPath(path: string, name: string): Identity {
+  const pem = readFileSync(path, "utf8");
   const privateKey = createPrivateKey(pem);
   const raw = rawPublicKey(createPublicKey(privateKey));
-  return { privateKey, publicKeyRaw: raw, address: addressFromRaw(raw) };
+  return { name, privateKey, publicKeyRaw: raw, address: addressFromRaw(raw) };
+}
+
+export function addressForName(name: string): string {
+  return loadFromPath(keyPathForName(name), name).address;
+}
+
+/** Load the identity for a command (respects --account / env / active). */
+export function load(explicit?: string): Identity {
+  const name = resolveAccountName(explicit);
+  if (!name) {
+    throw new Error("no identity — run `aport keygen` (or `aport keygen --account <name>`)");
+  }
+  if (!accountExists(name)) {
+    throw new Error(`account "${name}" not found — run \`aport keygen --account ${name}\``);
+  }
+  return loadFromPath(keyPathForName(name), name);
+}
+
+/** Create a new named identity. Returns it. */
+export function generate(name: string): Identity {
+  bootstrap();
+  mkdirSync(ACCOUNTS_DIR, { recursive: true });
+  const { privateKey } = generateKeyPairSync("ed25519");
+  const path = keyPathForName(name);
+  writeFileSync(path, privateKey.export({ type: "pkcs8", format: "pem" }) as string, {
+    mode: 0o600,
+  });
+  chmodSync(path, 0o600);
+  if (!getActiveName()) setActive(name); // first account becomes active
+  return loadFromPath(path, name);
 }
 
 export function canonical(
@@ -93,7 +173,7 @@ export function canonical(
 
 export type SignedHeaders = Record<string, string>;
 
-/** Build the signed auth headers for a request (method + path + body). */
+/** Build the signed auth headers for a request. */
 export function signRequest(
   id: Identity,
   method: string,
