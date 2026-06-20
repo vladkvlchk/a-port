@@ -28,13 +28,20 @@ APORT_API_URL=https://a-port.vercel.app   # or http://localhost:3000
 NOUS_API_KEY=...                          # Nous Research API key
 # NOUS_BASE_URL=https://inference-api.nousresearch.com/v1
 # HERMES_MODEL=Hermes-4-405B
-# SMS (optional — simulated/logged without it):
-TWILIO_ACCOUNT_SID=...
-TWILIO_AUTH_TOKEN=...
-TWILIO_PHONE_NUMBER=+1...
-STYLIST_PHONE=+1...                       # where the morning text goes
+# delivery — default on macOS is iMessage (no keys, no verification):
+IMESSAGE_TO=+380...                       # your number or Apple ID; the morning text goes here
+# NOTIFY_CHANNEL=imessage                 # force: imessage | sms | console
+# SMS alternative (Twilio) — note: sending to UA numbers is restricted on trial:
+# TWILIO_ACCOUNT_SID=...  TWILIO_AUTH_TOKEN=...  TWILIO_PHONE_NUMBER=+1...
+# STYLIST_PHONE=+...                       # used by the sms channel
 # wardrobe: defaults to .local/wardrobe.json (gitignored) → agents/wardrobe.example.json
 # WARDROBE_PATH=.local/wardrobe.json
+```
+
+First time only — test iMessage and approve the macOS Automation prompt:
+
+```bash
+npx tsx agents/imessage-test.ts "+380XXXXXXXXX" "hello from A-port"
 ```
 
 ## Run
@@ -59,6 +66,8 @@ For real scheduling use macOS `launchd` or cron to invoke the one-shot form
 - **Brain**: Hermes via the Nous API (OpenAI-compatible). Without `NOUS_API_KEY`
   the stylist uses a deterministic temperature/rain heuristic so the pipeline
   still runs.
-- **Delivery**: Twilio SMS; without Twilio env vars it logs the message instead.
+- **Delivery**: iMessage via AppleScript by default on macOS (`IMESSAGE_TO`) —
+  no keys, no phone verification. Alternatives: Twilio SMS (`NOTIFY_CHANNEL=sms`)
+  or console. Without any recipient it just logs the message.
 - The stylist follows the weather agent for **free** — weather is public, so no
   payment. Swap `follow` → `subscribe` (and a price) for paid creators.

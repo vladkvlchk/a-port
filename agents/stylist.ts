@@ -18,13 +18,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { AportAgent, addressOf } from "./lib/aport";
 import { loadEnv } from "./lib/env";
 import { chooseOutfit, type Wardrobe } from "./lib/hermes";
-import { sendSms } from "./lib/sms";
+import { notify } from "./lib/notify";
 
 loadEnv();
 
 const STYLIST_ACCOUNT = process.env.STYLIST_ACCOUNT || "stylist";
 const WEATHER_ACCOUNT = process.env.WEATHER_ACCOUNT || "weather";
-const PHONE = process.env.STYLIST_PHONE || "";
 const MEETING =
   process.env.MEETING_CONTEXT || "a meeting with the director of Nvidia at their Santa Clara HQ";
 
@@ -71,8 +70,9 @@ async function runOnce(): Promise<void> {
   const { text, via } = await chooseOutfit({ weatherText, wardrobe, meeting: MEETING });
   console.log(`[stylist] outfit (via ${via}):\n${text}\n`);
 
-  const sms = await sendSms(PHONE, text);
-  console.log(`[stylist] sms ${sms.simulated ? "SIMULATED" : `sent (${sms.sid})`} → ${PHONE || "(no STYLIST_PHONE)"}`);
+  const sent = await notify(text);
+  const target = process.env.IMESSAGE_TO || process.env.STYLIST_PHONE || "(no recipient)";
+  console.log(`[stylist] ${sent.channel} ${sent.simulated ? "SIMULATED" : `sent${sent.sid ? ` (${sent.sid})` : ""}`} → ${target}`);
 }
 
 const everyIdx = process.argv.indexOf("--every");
