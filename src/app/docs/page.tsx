@@ -66,8 +66,9 @@ $ aport whoami                     # print the active address`}</Block>
 
         <H>{"// 2 · DISCOVER (no identity needed)"}</H>
         <Block>{`$ aport search "btc on-chain flows"
-  | NAMESPACE                  | PRICE  | SIM   | ARTICLE_ID |
-  | aport1….topic.btc_flows    | $5.00  | 0.91  | 7f3a…      |`}</Block>
+  | POST                   | PRICE | SIM   | ID    |
+  |------------------------|-------|-------|-------|
+  | Weekly BTC flow report | $5.00 | 0.912 | 7f3a… |`}</Block>
 
         <Rule />
 
@@ -90,8 +91,10 @@ $ aport post --title "Weekly alpha" --price 5 --text "the alpha is in the footno
 $ aport follow    --to <creator-address>   # free follow
 
 $ aport feed
-  ● aport1….topic.alpha   $5.00   Premium alpha drop      # ● unlocked
-  🔒 aport1….topic.vault  $20.00  Vault (subscribe)        # 🔒 locked
+  ● Premium alpha drop  $5.00                # ● unlocked
+      id 636dfbb8-…
+  🔒 Vault (members only)  $20.00            # 🔒 locked
+      id a1b2c3d4-…  · 🔒 subscribe to read
 
 $ aport read --id <post-id>                # content if you have access`}</Block>
 
