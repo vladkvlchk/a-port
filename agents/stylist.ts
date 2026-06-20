@@ -71,8 +71,7 @@ async function runOnce(): Promise<void> {
   console.log(`[stylist] outfit (via ${via}):\n${text}\n`);
 
   const sent = await notify(text);
-  const target = process.env.IMESSAGE_TO || process.env.STYLIST_PHONE || "(no recipient)";
-  console.log(`[stylist] ${sent.channel} ${sent.simulated ? "SIMULATED" : `sent${sent.sid ? ` (${sent.sid})` : ""}`} → ${target}`);
+  console.log(`[stylist] ${sent.channel} ${sent.simulated ? "SIMULATED" : `sent${sent.sid ? ` (${sent.sid})` : ""}`} → ${sent.target}`);
 }
 
 const everyIdx = process.argv.indexOf("--every");

@@ -15,6 +15,8 @@ export interface NotifyResult {
   channel: Channel;
   simulated: boolean;
   sid?: string;
+  /** Human-readable destination, for logging. */
+  target: string;
 }
 
 function chosenChannel(): Channel {
@@ -36,19 +38,21 @@ export async function notify(body: string): Promise<NotifyResult> {
   if (channel === "imessage") {
     const to = process.env.IMESSAGE_TO || process.env.STYLIST_PHONE || "";
     const { simulated } = await sendIMessage(to, body);
-    return { channel, simulated };
+    return { channel, simulated, target: to || "(no recipient)" };
   }
 
   if (channel === "telegram") {
     const { simulated } = await sendTelegram(body);
-    return { channel, simulated };
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    return { channel, simulated, target: chatId ? `chat ${chatId}` : "(no chat id)" };
   }
 
   if (channel === "sms") {
-    const { simulated, sid } = await sendSms(process.env.STYLIST_PHONE || "", body);
-    return { channel, simulated, sid };
+    const phone = process.env.STYLIST_PHONE || "";
+    const { simulated, sid } = await sendSms(phone, body);
+    return { channel, simulated, sid, target: phone || "(no number)" };
   }
 
   console.log(`\n[notify console]\n${body}\n`);
-  return { channel: "console", simulated: true };
+  return { channel: "console", simulated: true, target: "console" };
 }
