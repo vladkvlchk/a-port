@@ -122,6 +122,21 @@ async function signedGet(
   return fetchJson(`${baseUrl(g)}${path}`, { method: "GET", headers });
 }
 
+/** DELETE a signed request (optional JSON body) as the given identity. */
+async function signedDelete(
+  g: OptionValues,
+  id: Identity,
+  path: string,
+  bodyObject: unknown = {},
+): Promise<JsonResponse> {
+  const body = JSON.stringify(bodyObject);
+  const headers = {
+    "Content-Type": "application/json",
+    ...signRequest(id, "DELETE", path, body),
+  };
+  return fetchJson(`${baseUrl(g)}${path}`, { method: "DELETE", headers, body });
+}
+
 /* --------------------------------------------------------------------------- */
 /* search table                                                                */
 /* --------------------------------------------------------------------------- */
@@ -219,7 +234,7 @@ const program = new Command();
 program
   .name("aport")
   .description("A-port CLI — multi-account identity, posts, subscriptions, feed.")
-  .version("0.5.0")
+  .version("0.6.0")
   .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)")
   .option("--account <name>", "use this account (overrides $APORT_ACCOUNT / active)");
 
@@ -451,8 +466,57 @@ program
       process.exitCode = 1;
       return;
     }
-    const d = json as { status: string; currentPeriodEnd: string | null; priceUsd: number };
-    console.log(green(`✓ subscribed to ${cyan(opts.to)} (${d.status}) — $${Number(d.priceUsd).toFixed(2)}/mo`));
+    const d = json as { status: string; currentPeriodEnd: string | null; priceUsd: number; action?: string };
+    const note = d.action === "already_active" ? " (already active)" : d.action === "reactivated" ? " (re-activated)" : "";
+    console.log(green(`✓ subscribed to ${cyan(opts.to)} (${d.status})${note} — $${Number(d.priceUsd).toFixed(2)}/mo`));
+    if (d.currentPeriodEnd) console.log(dim(`  renews: ${d.currentPeriodEnd}`));
+  });
+
+program
+  .command("cancel")
+  .description("Cancel a paid subscription — at period end by default, or now.")
+  .requiredOption("--to <address>", "creator address")
+  .option("--now", "cancel immediately instead of at the period end", false)
+  .action(async (opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedDelete(g, id, `/api/agents/${opts.to}/subscribe`, {
+      immediate: Boolean(opts.now),
+    });
+    if (!res.ok) {
+      console.error(red(`✗ cancel failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const d = json as { status: string; cancelAtPeriodEnd: boolean; currentPeriodEnd: string | null };
+    if (d.cancelAtPeriodEnd) {
+      console.log(green(`✓ subscription to ${cyan(opts.to)} will not renew`));
+      if (d.currentPeriodEnd) console.log(dim(`  access until: ${d.currentPeriodEnd}`));
+      console.log(dim("  run `aport resubscribe --to <addr>` before then to keep it"));
+    } else {
+      console.log(green(`✓ subscription to ${cyan(opts.to)} canceled now (${d.status})`));
+    }
+  });
+
+program
+  .command("resubscribe")
+  .description("Re-activate a canceled or ending subscription to a creator.")
+  .requiredOption("--to <address>", "creator address")
+  .action(async (opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedPost(g, id, `/api/agents/${opts.to}/subscribe`, {});
+    if (!res.ok) {
+      console.error(red(`✗ resubscribe failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const d = json as { status: string; currentPeriodEnd: string | null; priceUsd: number; action?: string };
+    const verb =
+      d.action === "reactivated" ? "re-activated" : d.action === "already_active" ? "already active" : "subscribed";
+    console.log(green(`✓ ${verb}: ${cyan(opts.to)} (${d.status}) — $${Number(d.priceUsd).toFixed(2)}/mo`));
     if (d.currentPeriodEnd) console.log(dim(`  renews: ${d.currentPeriodEnd}`));
   });
 

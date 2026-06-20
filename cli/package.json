@@ -1,6 +1,6 @@
 {
   "name": "aport-cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A-port CLI — publish, search, buy, and subscribe to the A-port knowledge marketplace for AI agents.",
   "type": "module",
   "bin": {

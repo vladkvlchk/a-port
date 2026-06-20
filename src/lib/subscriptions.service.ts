@@ -131,9 +131,16 @@ export interface PaidSubscriptionResult {
   currentPeriodEnd: string | null;
   subscriptionId: string;
   priceUsd: number | null;
+  /** What the call did: brand-new sub, reverted a pending cancel, or no-op. */
+  action: "created" | "reactivated" | "already_active";
 }
 
-/** Paid subscription via Stripe recurring. */
+/**
+ * Paid subscription via Stripe recurring. Idempotent: if a live Stripe
+ * subscription already exists we reuse it — reverting a pending cancel when
+ * needed — instead of creating a duplicate (which would double-bill). This also
+ * makes it the "resubscribe" path.
+ */
 export async function subscribe(
   followerAddress: string,
   followerPublicKey: string,
@@ -152,10 +159,60 @@ export async function subscribe(
 
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("stripe_customer_id")
+    .select("stripe_customer_id, stripe_subscription_id")
     .eq("follower_id", followerId)
     .eq("creator_id", creator.id)
     .maybeSingle();
+
+  const record = async (
+    sub: StripeSubscriptionLike,
+    customerId: string,
+    action: PaidSubscriptionResult["action"],
+  ): Promise<PaidSubscriptionResult> => {
+    const currentPeriodEnd = periodEndIso(sub);
+    const { error } = await supabase.from("subscriptions").upsert(
+      {
+        follower_id: followerId,
+        creator_id: creator.id,
+        tier: "paid",
+        status: sub.status,
+        current_period_end: currentPeriodEnd,
+        stripe_customer_id: customerId,
+        stripe_subscription_id: sub.id,
+      },
+      { onConflict: "follower_id,creator_id" },
+    );
+    if (error) throw new SubscriptionError(`failed to record subscription: ${error.message}`, 500);
+    return {
+      tier: "paid",
+      status: sub.status,
+      currentPeriodEnd,
+      subscriptionId: sub.id,
+      priceUsd: creator.subscription_price_usd,
+      action,
+    };
+  };
+
+  // Reuse an existing live subscription rather than stacking a second one.
+  if (existing?.stripe_subscription_id) {
+    try {
+      const current = (await stripe.subscriptions.retrieve(
+        existing.stripe_subscription_id,
+      )) as unknown as StripeSubscriptionLike & { cancel_at_period_end?: boolean };
+      if (current.status === "active" || current.status === "trialing") {
+        if (current.cancel_at_period_end) {
+          const reverted = (await stripe.subscriptions.update(existing.stripe_subscription_id, {
+            cancel_at_period_end: false,
+          })) as unknown as StripeSubscriptionLike;
+          return record(reverted, existing.stripe_customer_id ?? "", "reactivated");
+        }
+        return record(current, existing.stripe_customer_id ?? "", "already_active");
+      }
+      // canceled / incomplete_expired / unpaid → fall through to a fresh sub.
+    } catch {
+      // subscription no longer retrievable (deleted) → fall through to fresh.
+    }
+  }
 
   let customerId = existing?.stripe_customer_id ?? null;
   if (!customerId) {
@@ -174,29 +231,70 @@ export async function subscribe(
     items: [{ price: creator.stripe_price_id }],
   });
 
-  const currentPeriodEnd = periodEndIso(sub as unknown as StripeSubscriptionLike);
+  return record(sub as unknown as StripeSubscriptionLike, customerId, "created");
+}
 
-  const { error } = await supabase.from("subscriptions").upsert(
-    {
-      follower_id: followerId,
-      creator_id: creator.id,
-      tier: "paid",
-      status: sub.status,
-      current_period_end: currentPeriodEnd,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: sub.id,
-    },
-    { onConflict: "follower_id,creator_id" },
-  );
-  if (error) throw new SubscriptionError(`failed to record subscription: ${error.message}`, 500);
+export interface CancelResult {
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  subscriptionId: string;
+}
 
-  return {
-    tier: "paid",
-    status: sub.status,
-    currentPeriodEnd,
-    subscriptionId: sub.id,
-    priceUsd: creator.subscription_price_usd,
-  };
+/**
+ * Cancel a paid subscription. Default cancels at the period end (the fan keeps
+ * access until then, when Stripe deletes the sub and the webhook flips us to
+ * canceled); `immediate` ends it now.
+ */
+export async function cancelSubscription(
+  followerAddress: string,
+  followerPublicKey: string,
+  creatorAddress: string,
+  immediate = false,
+): Promise<CancelResult> {
+  if (!stripeConfigured()) throw new SubscriptionError("Stripe is not configured", 503);
+  const supabase = getSupabaseAdmin();
+  const followerId = await resolveAccountByAddress(supabase, followerAddress, followerPublicKey, "buyer");
+  const creator = await creatorByAddress(supabase, creatorAddress);
+
+  const { data: row } = await supabase
+    .from("subscriptions")
+    .select("stripe_subscription_id")
+    .eq("follower_id", followerId)
+    .eq("creator_id", creator.id)
+    .eq("tier", "paid")
+    .maybeSingle();
+  if (!row?.stripe_subscription_id) {
+    throw new SubscriptionError(`no paid subscription to ${creatorAddress}`, 404);
+  }
+
+  const stripe = getStripe();
+
+  if (immediate) {
+    const sub = (await stripe.subscriptions.cancel(
+      row.stripe_subscription_id,
+    )) as unknown as StripeSubscriptionLike;
+    await supabase
+      .from("subscriptions")
+      .update({ status: sub.status })
+      .eq("follower_id", followerId)
+      .eq("creator_id", creator.id);
+    return { status: sub.status, cancelAtPeriodEnd: false, currentPeriodEnd: periodEndIso(sub), subscriptionId: sub.id };
+  }
+
+  const sub = (await stripe.subscriptions.update(row.stripe_subscription_id, {
+    cancel_at_period_end: true,
+  })) as unknown as StripeSubscriptionLike;
+  const currentPeriodEnd = periodEndIso(sub);
+  // Status stays active until period end; just refresh the known period.
+  if (currentPeriodEnd) {
+    await supabase
+      .from("subscriptions")
+      .update({ current_period_end: currentPeriodEnd })
+      .eq("follower_id", followerId)
+      .eq("creator_id", creator.id);
+  }
+  return { status: sub.status, cancelAtPeriodEnd: true, currentPeriodEnd, subscriptionId: sub.id };
 }
 
 /** Does `followerId` have access to `creatorId`'s premium content? */

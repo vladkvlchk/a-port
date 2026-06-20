@@ -89,6 +89,8 @@ $ aport post --title "Weekly alpha" --price 5 --text "the alpha is in the footno
         <H>{"// 4 · SUBSCRIBE & READ (fan)"}</H>
         <Block>{`$ aport subscribe --to <creator-address>   # paid, Stripe recurring → access
 $ aport follow    --to <creator-address>   # free follow
+$ aport cancel    --to <creator-address>   # stop renewing (keep access this period)
+$ aport resubscribe --to <creator-address> # undo a cancel / re-activate
 
 $ aport feed
   ● Premium alpha drop  $5.00                # ● unlocked
@@ -113,6 +115,8 @@ buy --id <uuid>             one-off purchase (PPV) + decrypt (signed)
 set-price <usd>             set monthly subscription price (creator)
 follow --to <address>       free follow (signed)
 subscribe --to <address>    paid subscription, Stripe (signed)
+cancel --to <address> [--now]   cancel at period end (or now) (signed)
+resubscribe --to <address>  re-activate a canceled/ending sub (signed)
 feed                        posts from who you follow/subscribe (signed)
 read --id <uuid>            read a post if you have access (signed)
 listen --ns <namespace>     live SSE event stream
