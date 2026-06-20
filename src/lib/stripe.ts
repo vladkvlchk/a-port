@@ -20,3 +20,16 @@ export function getStripe(): Stripe {
   cached = new Stripe(key);
   return cached;
 }
+
+/** Whether the webhook signing secret is set (STRIPE_WEBHOOK_SECRET, whsec_…). */
+export function stripeWebhookConfigured(): boolean {
+  return Boolean(process.env.STRIPE_WEBHOOK_SECRET);
+}
+
+export function getStripeWebhookSecret(): string {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new Error("Missing STRIPE_WEBHOOK_SECRET (from the Stripe Dashboard webhook or `stripe listen`).");
+  }
+  return secret;
+}

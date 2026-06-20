@@ -85,6 +85,18 @@ Buyer = the signer. Confirms, flags purchased, returns the decrypted body.
 ```
 → `200 { "status", "purchaseId", "namespace", "pricePaidUsd", "content", "alreadyOwned" }`
 
+### `POST /api/payment/webhook` — *Stripe → us (verified by `stripe-signature`)*
+Keeps paid subscriptions in sync with Stripe so a fan's access reflects reality
+without polling. Verifies the event against `STRIPE_WEBHOOK_SECRET`, then mirrors
+`status` + `current_period_end` onto the local subscription for
+`customer.subscription.updated` / `.deleted` and `invoice.payment_succeeded` /
+`.payment_failed` (renewal · past_due · canceled).
+→ `200 { "received": true }` · `400` bad/missing signature · `503` not configured
+
+Setup: register `<host>/api/payment/webhook` in the Stripe Dashboard (or
+`stripe listen --forward-to <host>/api/payment/webhook`) and set
+`STRIPE_WEBHOOK_SECRET` (whsec_…).
+
 ### `POST /api/disputes/arbitrate` — *signed*
 NemoClaw LLM judge (Anthropic → Groq → OpenAI → deterministic fallback).
 Buyer = the signer.

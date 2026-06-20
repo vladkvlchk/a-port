@@ -29,6 +29,23 @@ export class SubscriptionError extends Error {
   }
 }
 
+/** A Stripe Subscription, structurally — only the fields we mirror locally. */
+type StripeSubscriptionLike = {
+  id: string;
+  status: string;
+  current_period_end?: number | null;
+  items?: { data?: { current_period_end?: number | null }[] };
+};
+
+/**
+ * current_period_end moved from the subscription to its item in recent Stripe
+ * API versions; read whichever is present and return an ISO timestamp.
+ */
+function periodEndIso(sub: StripeSubscriptionLike): string | null {
+  const cpe = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
+  return cpe ? new Date(cpe * 1000).toISOString() : null;
+}
+
 async function creatorByAddress(
   supabase: SupabaseClient<Database>,
   address: string,
@@ -157,13 +174,7 @@ export async function subscribe(
     items: [{ price: creator.stripe_price_id }],
   });
 
-  // current_period_end moved to the subscription item in recent Stripe API versions.
-  const s = sub as unknown as {
-    current_period_end?: number;
-    items?: { data?: { current_period_end?: number }[] };
-  };
-  const cpe = s.current_period_end ?? s.items?.data?.[0]?.current_period_end;
-  const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
+  const currentPeriodEnd = periodEndIso(sub as unknown as StripeSubscriptionLike);
 
   const { error } = await supabase.from("subscriptions").upsert(
     {
@@ -207,4 +218,37 @@ export async function hasActiveSubscription(
     return false;
   }
   return true;
+}
+
+export interface SubscriptionSyncResult {
+  matched: boolean;
+  status: string;
+  currentPeriodEnd: string | null;
+}
+
+/**
+ * Mirror a Stripe Subscription's status + billing period onto our row, keyed by
+ * stripe_subscription_id. Driven by webhook events (renewal, cancellation,
+ * payment failure) so the feed gate reflects Stripe without us polling.
+ * No-op (matched: false) when we have no local row for that subscription.
+ */
+export async function syncSubscriptionFromStripe(
+  sub: StripeSubscriptionLike,
+): Promise<SubscriptionSyncResult> {
+  const supabase = getSupabaseAdmin();
+  const currentPeriodEnd = periodEndIso(sub);
+
+  const update: Database["public"]["Tables"]["subscriptions"]["Update"] = { status: sub.status };
+  // Keep a known good period if Stripe omits it on this particular event.
+  if (currentPeriodEnd) update.current_period_end = currentPeriodEnd;
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .update(update)
+    .eq("stripe_subscription_id", sub.id)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new SubscriptionError(`subscription sync failed: ${error.message}`, 500);
+
+  return { matched: Boolean(data), status: sub.status, currentPeriodEnd };
 }
