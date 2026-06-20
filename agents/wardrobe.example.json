@@ -1,0 +1,10 @@
+{
+  "suits": ["charcoal wool suit", "navy single-breasted suit"],
+  "tops": ["white oxford shirt", "light-blue dress shirt", "black merino tee"],
+  "knitwear": ["grey crewneck sweater", "navy fine-gauge cardigan"],
+  "outerwear": ["navy overcoat", "tan trench coat"],
+  "rain": ["packable rain shell"],
+  "trousers": ["charcoal wool trousers", "dark indigo jeans"],
+  "shoes": ["black oxford shoes", "brown suede chelsea boots", "white leather sneakers"],
+  "accessories": ["burgundy silk tie", "minimal steel watch", "grey wool scarf"]
+}
