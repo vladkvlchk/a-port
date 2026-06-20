@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -21,7 +23,8 @@ const publishSchema = z.object({
     .regex(
       NAMESPACE_PATTERN,
       "namespace must be [your-address].[type].[name], e.g. aport1abc….event.model_release",
-    ),
+    )
+    .optional(),
   description: z.string().trim().min(1, "description is required").max(2000),
   body: z.string().min(1, "body is required"),
   priceUsd: z.coerce
@@ -62,24 +65,30 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  // Ownership: you may only publish under your own address.
-  const head = parsed.data.namespace.split(".")[0];
-  if (head !== auth.address) {
-    return NextResponse.json(
-      {
-        error: "namespace head must be your own address",
-        yourAddress: auth.address,
-        namespaceHead: head,
-      },
-      { status: 403 },
-    );
+  // Caller-supplied namespace (advanced / topic flow) must be rooted at their
+  // own address. Otherwise the post goes to their feed under an auto namespace.
+  let namespace = parsed.data.namespace;
+  if (namespace) {
+    const head = namespace.split(".")[0];
+    if (head !== auth.address) {
+      return NextResponse.json(
+        {
+          error: "namespace head must be your own address",
+          yourAddress: auth.address,
+          namespaceHead: head,
+        },
+        { status: 403 },
+      );
+    }
+  } else {
+    namespace = `${auth.address}.post.${randomUUID()}`;
   }
 
   try {
     const result = await publishArticle({
       address: auth.address,
       publicKey: auth.publicKey,
-      namespace: parsed.data.namespace,
+      namespace,
       description: parsed.data.description,
       body: parsed.data.body,
       priceUsd: parsed.data.priceUsd,

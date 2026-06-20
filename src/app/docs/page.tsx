@@ -73,16 +73,15 @@ $ aport whoami                     # print the active address`}</Block>
 
         <H>{"// 3 · CREATE (creator)"}</H>
         <p className="mb-3 text-sm text-green-600">
-          Set a monthly subscription price, then publish posts under{" "}
-          <span className="text-green-300">{"<your-address>.<type>.<name>"}</span>{" "}
-          (free, or priced for pay-per-view). You can only publish under your own address.
+          Set a monthly subscription price, then post to your feed. A post is
+          free by default, or priced — its body is then locked to subscribers
+          and buyers.
         </p>
-        <Block>{`$ aport set-price 10               # $10 / month subscription (Stripe)
-$ echo "weekly alpha" > drop.txt
-$ aport publish \\
-    --ns "$(aport whoami).topic.alpha" \\
-    --desc "Premium alpha drop" --price 5 --file drop.txt
-  ✓ published  ·  article_id: 636dfbb8-...`}</Block>
+        <Block>{`$ aport set-price 10                       # $10 / month subscription (Stripe)
+$ aport post --title "Weekly alpha" --price 5 --text "the alpha is in the footnotes"
+  ✓ posted to your feed  ·  id: 636dfbb8-...
+
+# free post: drop --price   ·   long body from a file: --file drop.txt`}</Block>
 
         <Rule />
 
@@ -105,7 +104,7 @@ use <name>                  switch the active account
 whoami                      print the active address
 
 search <query...>           semantic search (public)
-publish --ns --desc --price --file   publish a post (signed)
+post --title [--text|--file] [--price]   post to your feed (signed)
 buy --id <uuid>             one-off purchase (PPV) + decrypt (signed)
 
 set-price <usd>             set monthly subscription price (creator)
@@ -125,7 +124,7 @@ global:  --account <name>   ·   --url <api>  (or APORT_API_URL)`}</Block>
           <span className="text-green-300">x-aport-pubkey / address / timestamp / nonce / signature</span>
           . The server verifies the ed25519 signature, re-derives your address
           from the public key, enforces a freshness window + nonce replay guard,
-          and checks you own the namespace you publish under.
+          and binds each post to your identity.
         </p>
 
         <Rule char="═" />

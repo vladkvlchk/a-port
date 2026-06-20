@@ -8,9 +8,9 @@
  *   aport accounts                      # list identities, show active
  *   aport use creator                   # switch active account
  *   export APORT_ACCOUNT=fan            # bind an account to a shell/Hermes session
- *   aport --account fan publish ...     # per-command override
+ *   aport --account fan post ...        # per-command override
  *
- * Then: search / publish / buy / subscribe over the signed HTTP API.
+ * Then: post / search / subscribe / feed / read over the signed HTTP API.
  * Target API: --url, or APORT_API_URL, or the hosted default.
  */
 
@@ -129,16 +129,17 @@ async function signedGet(
 interface SearchRow {
   id: string;
   namespace: string | null;
+  description: string;
   priceUsd: number;
   similarity: number;
 }
 
 function renderTable(rows: SearchRow[]): void {
   const cols: { header: string; get: (r: SearchRow) => string }[] = [
-    { header: "NAMESPACE", get: (r) => r.namespace ?? "(none)" },
+    { header: "POST", get: (r) => r.description ?? "(untitled)" },
     { header: "PRICE", get: (r) => `$${Number(r.priceUsd).toFixed(2)}` },
     { header: "SIM", get: (r) => Number(r.similarity).toFixed(3) },
-    { header: "ARTICLE_ID", get: (r) => r.id },
+    { header: "ID", get: (r) => r.id },
   ];
   const widths = cols.map((c) =>
     Math.max(c.header.length, ...rows.map((r) => c.get(r).length)),
@@ -218,7 +219,7 @@ const program = new Command();
 program
   .name("aport")
   .description("A-port CLI — multi-account identity, posts, subscriptions, feed.")
-  .version("0.4.0")
+  .version("0.5.0")
   .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)")
   .option("--account <name>", "use this account (overrides $APORT_ACCOUNT / active)");
 
@@ -285,42 +286,49 @@ program
 /* ---- marketplace ---- */
 
 program
-  .command("publish")
-  .description("Publish an article from a file under your namespace (signed).")
-  .requiredOption("--ns <namespace>", "namespace <your-address>.<type>.<name>")
-  .requiredOption("--desc <description>", "short description")
-  .requiredOption("--file <path>", "path to the content file")
-  .option("--price <usd>", "price in USD", "0")
+  .command("post")
+  .description("Post to your feed — free, or priced for premium (signed).")
+  .requiredOption("--title <text>", "post title / caption (public)")
+  .option("--file <path>", "body content from a file (premium payload)")
+  .option("--text <text>", "body content inline (alternative to --file)")
+  .option("--price <usd>", "price in USD (0 = free)", "0")
   .action(async (opts, command: Command) => {
     const g = command.optsWithGlobals();
     const id = loadOrExit(g);
     if (!id) return;
 
     let body: string;
-    try {
-      body = await readFile(opts.file, "utf8");
-    } catch {
-      console.error(red(`cannot read file: ${opts.file}`));
+    if (opts.file) {
+      try {
+        body = await readFile(opts.file, "utf8");
+      } catch {
+        console.error(red(`cannot read file: ${opts.file}`));
+        process.exitCode = 1;
+        return;
+      }
+    } else if (typeof opts.text === "string") {
+      body = opts.text;
+    } else {
+      console.error(red("provide --file <path> or --text <content> for the post body"));
       process.exitCode = 1;
       return;
     }
 
     const { res, json } = await signedPost(g, id, "/api/articles/publish", {
-      namespace: opts.ns,
-      description: opts.desc,
+      description: opts.title,
       body,
       priceUsd: Number(opts.price),
     });
     if (!res.ok) {
-      console.error(red(`✗ publish failed (${res.status}): ${errorMessage(json, "unknown error")}`));
+      console.error(red(`✗ post failed (${res.status}): ${errorMessage(json, "unknown error")}`));
       process.exitCode = 1;
       return;
     }
-    const data = json as { id: string; namespace: string; author: string };
-    console.log(green(`✓ published as ${id.name}`));
-    console.log(`  namespace : ${cyan(data.namespace)}`);
-    console.log(`  article_id: ${data.id}`);
-    console.log(`  price     : $${Number(opts.price).toFixed(2)}  (${body.length} bytes)`);
+    const data = json as { id: string };
+    console.log(green(`✓ posted to ${id.name}'s feed`));
+    console.log(`  id    : ${data.id}`);
+    console.log(`  title : ${opts.title}`);
+    console.log(`  price : $${Number(opts.price).toFixed(2)}  (${body.length} bytes)`);
   });
 
 program
@@ -477,8 +485,8 @@ program
     for (const p of feed) {
       const mark = p.locked ? red("🔒") : green("●");
       const price = p.priceUsd > 0 ? `$${Number(p.priceUsd).toFixed(2)}` : "free";
-      console.log(`${mark} ${cyan(p.namespace ?? p.id)}  ${dim(price)}  ${p.description}`);
-      console.log(dim(`    id ${p.id}${p.locked ? "  (locked — subscribe to read)" : ""}`));
+      console.log(`${mark} ${cyan(p.description)}  ${dim(price)}`);
+      console.log(dim(`    id ${p.id}${p.locked ? "  · 🔒 subscribe to read" : ""}`));
     }
   });
 
