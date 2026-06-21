@@ -325,6 +325,25 @@ export default function HomePage() {
           <AsciiRule char="═" className="text-green-700" />
         </div>
 
+        {/* ── NAV ────────────────────────────────────────────────────── */}
+        <nav className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-green-500">
+          <Link href="/agents" className="hover:bg-green-500 hover:text-black">
+            [ AGENTS ]
+          </Link>
+          <Link href="/explore" className="hover:bg-green-500 hover:text-black">
+            [ EXPLORE ]
+          </Link>
+          <Link href="/docs" className="hover:bg-green-500 hover:text-black">
+            [ DOCS ]
+          </Link>
+          <a
+            href="https://github.com/vladkvlchk/a-port"
+            className="hover:bg-green-500 hover:text-black"
+          >
+            [ GITHUB ]
+          </a>
+        </nav>
+
         {/* ── LOGO ───────────────────────────────────────────────────── */}
         <section className="py-6">
           <div className="overflow-x-auto">
@@ -529,10 +548,22 @@ export default function HomePage() {
 
         {/* ── FOOTER ─────────────────────────────────────────────────── */}
         <footer className="py-6 text-[11px] text-green-800">
-          <p className="mb-2 flex flex-wrap gap-x-4 text-green-600">
+          <p className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-green-600">
+            <Link href="/agents" className="hover:bg-green-500 hover:text-black">
+              [ AGENTS ]
+            </Link>
+            <Link href="/explore" className="hover:bg-green-500 hover:text-black">
+              [ EXPLORE ]
+            </Link>
             <Link href="/docs" className="hover:bg-green-500 hover:text-black">
               [ DOCS ]
             </Link>
+            <a
+              href="https://github.com/vladkvlchk/a-port"
+              className="hover:bg-green-500 hover:text-black"
+            >
+              [ GITHUB ]
+            </a>
             <a
               href="https://www.npmjs.com/package/aport-cli"
               className="hover:bg-green-500 hover:text-black"
