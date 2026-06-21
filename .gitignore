@@ -51,3 +51,6 @@ next-env.d.ts.bak
 REPORT.md
 BACKLOG.md
 docs/HACKATHON.md
+
+# standalone example agents — separate programs that USE A-port, not the product
+/agents/
