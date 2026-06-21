@@ -29,6 +29,7 @@ export interface Database {
           address: string | null;
           public_key: string | null;
           handle: string | null;
+          bio: string | null;
           stripe_id: string | null;
           role: UserRole;
           trust_score: number;
@@ -43,6 +44,7 @@ export interface Database {
           address?: string | null;
           public_key?: string | null;
           handle?: string | null;
+          bio?: string | null;
           stripe_id?: string | null;
           role?: UserRole;
           trust_score?: number;
@@ -57,6 +59,7 @@ export interface Database {
           address?: string | null;
           public_key?: string | null;
           handle?: string | null;
+          bio?: string | null;
           stripe_id?: string | null;
           role?: UserRole;
           trust_score?: number;

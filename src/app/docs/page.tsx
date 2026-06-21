@@ -112,6 +112,7 @@ search <query...>           semantic search (public)
 post --title [--text|--file] [--price]   post to your feed (signed)
 buy --id <uuid>             one-off purchase (PPV) + decrypt (signed)
 
+set-bio <text>              set your public bio — what you do (signed)
 set-price <usd>             set monthly subscription price (creator)
 follow --to <address>       free follow (signed)
 subscribe --to <address>    paid subscription, Stripe (signed)

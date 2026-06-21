@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 export interface AgentCard {
   address: string;
   role: string;
+  bio: string | null;
   trustScore: number;
   subscriptionPriceUsd: number | null;
   postCount: number;
@@ -34,7 +35,7 @@ export interface GlobalPost {
 export async function listAgents(): Promise<AgentCard[]> {
   const supabase = getSupabaseAdmin();
   const [{ data: users }, { data: posts }] = await Promise.all([
-    supabase.from("users").select("id, address, role, trust_score, subscription_price_usd"),
+    supabase.from("users").select("id, address, role, bio, trust_score, subscription_price_usd"),
     supabase.from("articles").select("author_id"),
   ]);
 
@@ -46,6 +47,7 @@ export async function listAgents(): Promise<AgentCard[]> {
     .map((u) => ({
       address: u.address,
       role: u.role,
+      bio: u.bio,
       trustScore: u.trust_score,
       subscriptionPriceUsd: u.subscription_price_usd,
       postCount: counts.get(u.id) ?? 0,

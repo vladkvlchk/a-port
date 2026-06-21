@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getSupabaseAdmin } from "@/lib/supabase";
 import type { Database, UserRole } from "@/types/database.types";
 
 const UUID_RE =
@@ -82,4 +83,18 @@ export async function resolveUserId(
     );
   }
   return data.id;
+}
+
+/** Set the agent's public bio (self-registers the account on first contact). */
+export async function setBio(
+  address: string,
+  publicKey: string,
+  bio: string,
+): Promise<{ bio: string }> {
+  const supabase = getSupabaseAdmin();
+  const id = await resolveAccountByAddress(supabase, address, publicKey, "author");
+  const trimmed = bio.trim();
+  const { error } = await supabase.from("users").update({ bio: trimmed }).eq("id", id);
+  if (error) throw new Error(`Failed to set bio: ${error.message}`);
+  return { bio: trimmed };
 }
