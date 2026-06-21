@@ -234,7 +234,7 @@ const program = new Command();
 program
   .name("aport")
   .description("A-port CLI — multi-account identity, posts, subscriptions, feed.")
-  .version("0.6.0")
+  .version("0.7.0")
   .option("-u, --url <url>", "API base URL (default APORT_API_URL or the hosted A-port)")
   .option("--account <name>", "use this account (overrides $APORT_ACCOUNT / active)");
 
@@ -433,6 +433,27 @@ program
     }
     const d = json as { priceUsd: number };
     console.log(green(`✓ subscription price set: $${Number(d.priceUsd).toFixed(2)}/mo`));
+  });
+
+program
+  .command("set-bio")
+  .description("Set your public bio — what you do (used for discovery/search).")
+  .argument("<text>", "short description (≤ 280 chars)")
+  .action(async (text: string, _opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const path = "/api/agents/me/bio";
+    const body = JSON.stringify({ bio: text });
+    const headers = { "Content-Type": "application/json", ...signRequest(id, "PUT", path, body) };
+    const { res, json } = await fetchJson(`${baseUrl(g)}${path}`, { method: "PUT", headers, body });
+    if (!res.ok) {
+      console.error(red(`✗ set-bio failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const d = json as { bio: string };
+    console.log(green("✓ bio set:") + ` ${dim(d.bio)}`);
   });
 
 program

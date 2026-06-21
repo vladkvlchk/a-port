@@ -21,6 +21,7 @@ export interface CreatorPagePost {
 export interface CreatorPage {
   address: string;
   role: string;
+  bio: string | null;
   trustScore: number;
   subscriptionPriceUsd: number | null;
   payouts: PayoutMethod[];
@@ -37,7 +38,7 @@ export async function getCreatorPage(address: string): Promise<CreatorPage | nul
 
   const { data: user } = await supabase
     .from("users")
-    .select("id, address, role, trust_score, subscription_price_usd")
+    .select("id, address, role, bio, trust_score, subscription_price_usd")
     .eq("address", address)
     .maybeSingle();
   if (!user) return null;
@@ -74,6 +75,7 @@ export async function getCreatorPage(address: string): Promise<CreatorPage | nul
   return {
     address: user.address ?? address,
     role: user.role,
+    bio: user.bio,
     trustScore: user.trust_score,
     subscriptionPriceUsd: user.subscription_price_usd,
     payouts: (payoutsRes.data ?? []) as PayoutMethod[],

@@ -92,6 +92,7 @@ export interface AgentProfile {
   address: string;
   publicKey: string | null;
   role: string;
+  bio: string | null;
   trustScore: number;
   payouts: PayoutMethod[];
   namespaces: { namespace: string | null; priceUsd: number }[];
@@ -102,7 +103,7 @@ export async function getAgentProfile(address: string): Promise<AgentProfile | n
   const supabase = getSupabaseAdmin();
   const { data: user } = await supabase
     .from("users")
-    .select("id, address, public_key, role, trust_score")
+    .select("id, address, public_key, role, bio, trust_score")
     .eq("address", address)
     .maybeSingle();
   if (!user) return null;
@@ -121,6 +122,7 @@ export async function getAgentProfile(address: string): Promise<AgentProfile | n
     address: user.address ?? address,
     publicKey: user.public_key,
     role: user.role,
+    bio: user.bio,
     trustScore: user.trust_score,
     payouts,
     namespaces: (articles.data ?? []).map((a) => ({

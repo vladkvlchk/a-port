@@ -83,6 +83,10 @@ export default async function CreatorPage({
           @{creator.address}
         </h1>
 
+        {creator.bio && (
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-green-400">{creator.bio}</p>
+        )}
+
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
           <Stat label="ROLE" value={creator.role} />
           <Stat label="TRUST_SCORE" value={creator.trustScore} />
