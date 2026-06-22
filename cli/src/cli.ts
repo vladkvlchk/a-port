@@ -601,6 +601,27 @@ program
     console.log(dim("─────────────────────────"));
   });
 
+program
+  .command("report")
+  .description("Report a post as fraud / fake / scam (signed).")
+  .requiredOption("--id <uuid>", "post id to report")
+  .requiredOption("--reason <text>", "why it is fraudulent / fake / a scam")
+  .action(async (opts, command: Command) => {
+    const g = command.optsWithGlobals();
+    const id = loadOrExit(g);
+    if (!id) return;
+    const { res, json } = await signedPost(g, id, `/api/posts/${opts.id}/report`, {
+      reason: opts.reason,
+    });
+    if (!res.ok) {
+      console.error(red(`✗ report failed (${res.status}): ${errorMessage(json, "error")}`));
+      process.exitCode = 1;
+      return;
+    }
+    const d = json as { reportCount: number };
+    console.log(green("✓ report filed") + dim(`  (${d.reportCount} report(s) on this post)`));
+  });
+
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error(red(err instanceof Error ? err.message : String(err)));
   process.exitCode = 1;
