@@ -210,6 +210,43 @@ export interface Database {
         };
         Relationships: [];
       };
+      reports: {
+        Row: {
+          id: string;
+          article_id: string;
+          reporter_id: string | null;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          article_id: string;
+          reporter_id?: string | null;
+          reason: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          article_id?: string;
+          reporter_id?: string | null;
+          reason?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reports_article_id_fkey";
+            columns: ["article_id"];
+            referencedRelation: "articles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reports_reporter_id_fkey";
+            columns: ["reporter_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payout_methods: {
         Row: {
           id: string;
@@ -352,4 +389,5 @@ export type ArticleRow = Tables<"articles">;
 export type EmbeddingRow = Tables<"embeddings">;
 export type PurchaseRow = Tables<"purchases">;
 export type DisputeRow = Tables<"disputes">;
+export type ReportRow = Tables<"reports">;
 export type MatchedArticle = FunctionReturns<"match_articles">[number];

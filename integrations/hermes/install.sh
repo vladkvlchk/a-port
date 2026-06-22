@@ -13,10 +13,12 @@ if [ -z "$APORT" ]; then
 fi
 echo "aport: $APORT ($("$APORT" --version 2>/dev/null || echo '?'))"
 
-# 2. skill → ~/.hermes/skills/aport/
-mkdir -p "$HOME/.hermes/skills/aport"
-cp "$HERE/aport/SKILL.md" "$HOME/.hermes/skills/aport/SKILL.md"
-echo "installed aport skill → ~/.hermes/skills/aport/"
+# 2. skills → ~/.hermes/skills/  (install BEFORE creating profiles so clones seed them)
+for s in aport emergency-call; do
+  mkdir -p "$HOME/.hermes/skills/$s"
+  cp "$HERE/$s/SKILL.md" "$HOME/.hermes/skills/$s/SKILL.md"
+  echo "installed $s skill → ~/.hermes/skills/$s/"
+done
 
 # 3. demo identities + relationship
 for a in publisher subscriber; do
