@@ -124,8 +124,7 @@ If time runs short, P1 alone is a complete, honest demo; P2/P3 are the
 ## Partner integrations
 
 - **Stripe** — buyer pays the 402 via Stripe Link / Shared Payment Token (real
-  agentic payment); Stripe stablecoin rails bridge fiat↔USDC. Optionally
-  `stripe projects` provisions infra (e.g. Twilio for the flashcrash demo).
+  agentic payment); Stripe stablecoin rails bridge fiat↔USDC.
 - **Nvidia** — NemoClaw arbitration on a real **Nemotron via NIM**, plus
   **NV-Embed** embeddings (also makes search semantic). Both already have
   swap-in points (`src/lib/llm.ts`, `src/lib/embeddings.ts`).

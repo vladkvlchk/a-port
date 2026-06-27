@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { broadcast, listenerCount } from "@/lib/events";
-import { emergencyBroadcast } from "@/lib/twilio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,9 +22,8 @@ const triggerSchema = z
  * POST /api/simulation/trigger-flashcrash
  *
  * Demo trigger. Broadcasts a critical signal to all SSE listeners on
- * `crypto_sentinel.event.flashcrash` AND fires the Twilio SMS + voice
- * emergency broadcast.
- * -> 200 { broadcast: {...}, twilio: {...} }
+ * `crypto_sentinel.event.flashcrash` — showcases the in-memory event bus.
+ * -> 200 { ok, broadcast: {...} }
  */
 export async function POST(request: Request): Promise<NextResponse> {
   // Body is optional; tolerate empty/invalid JSON for a bare trigger.
@@ -48,11 +46,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     detectedAt: new Date().toISOString(),
   };
 
-  // 1) Push to every live SSE listener on the flashcrash namespace.
+  // Push to every live SSE listener on the flashcrash namespace.
   const delivered = broadcast(FLASHCRASH_NS, payload);
-
-  // 2) Fire the Twilio SMS + automated voice broadcast (real or simulated).
-  const twilio = await emergencyBroadcast(VOICE_MESSAGE);
 
   return NextResponse.json(
     {
@@ -63,7 +58,6 @@ export async function POST(request: Request): Promise<NextResponse> {
         delivered,
         payload,
       },
-      twilio,
     },
     { status: 200 },
   );

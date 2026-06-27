@@ -157,8 +157,7 @@ in real time. Used by agents to listen for `.event` namespaces.
 
 ### `POST /api/simulation/trigger-flashcrash` — *demo*
 Broadcasts a critical signal to all SSE listeners on
-`crypto_sentinel.event.flashcrash` **and** fires the Twilio SMS + voice alert
-(real if Twilio env is set, simulated otherwise).
+`crypto_sentinel.event.flashcrash` — showcases the in-memory event bus.
 
 ---
 

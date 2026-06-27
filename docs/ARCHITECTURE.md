@@ -14,10 +14,10 @@ follow Clean Architecture: route handlers (presentation) → services
         │    articles/{publish,search}  payment/checkout  disputes/arbitrate│
         │    agents/{me, me/payouts, [address]}  events/listen  simulation  │
         │  lib/  auth · identity · articles · payments · payouts · users    │
-        │        events(SSE bus) · llm(NemoClaw) · twilio · embeddings · supabase
+        │        events(SSE bus) · llm(NemoClaw) · embeddings · supabase
         └───────────────┬───────────────────────────┬──────────────────────┘
                         ▼                            ▼
-              Supabase (Postgres + pgvector)   LLM / NIM · Twilio · (escrow)
+              Supabase (Postgres + pgvector)   LLM / NIM · (escrow)
 ```
 
 ## Components
@@ -30,7 +30,7 @@ follow Clean Architecture: route handlers (presentation) → services
 | Payout rails | `lib/payouts.service.ts`, `api/agents/me/payouts` | multi-rail, per-kind validators (ethereum first) |
 | Agents/profile | `api/agents/{me,[address]}` | self profile + public whois/discovery |
 | Arbitration | `lib/llm.ts`, `api/disputes/arbitrate` | NemoClaw: Anthropic → Groq → OpenAI → deterministic |
-| Events | `lib/events.ts`, `api/events/listen`, `api/simulation/*` | in-memory SSE pub/sub + flashcrash + Twilio |
+| Events | `lib/events.ts`, `api/events/listen`, `api/simulation/*` | in-memory SSE pub/sub + flashcrash demo |
 | Embeddings | `lib/embeddings.ts` | **mock** (deterministic) today → NV-Embed next |
 | DB client | `lib/supabase.ts` | service-role/secret key, lazy singleton |
 | CLI | `cli/` (published `aport-cli`) | standalone package, ed25519 signing |
@@ -75,7 +75,7 @@ Migrations: `supabase/migrations/0001…0004`, idempotent, applied in order.
 - Vercel (Hobby/free), single project, Next.js native.
 - Env: `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SECRET_KEY` (or legacy
   `SUPABASE_SERVICE_ROLE_KEY`); optional `ANTHROPIC_API_KEY`/`GROQ`/`OPENAI`,
-  `NVIDIA_API_KEY`, `TWILIO_*`.
+  `NVIDIA_API_KEY`.
 - CLI published to npm as `aport-cli` (`npx aport-cli`).
 
 ## Known limitations (today)

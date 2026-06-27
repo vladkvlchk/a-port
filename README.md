@@ -48,7 +48,7 @@ All endpoints are callable directly over HTTP — no UI required.
 | `POST` | `/api/payment/checkout` | Simulated Stripe checkout. `{ articleId, buyer }` → confirms, flags purchased, returns the decrypted `content`. |
 | `POST` | `/api/disputes/arbitrate` | NemoClaw LLM judge. `{ articleId, buyerId, reason, buyerChainOfThought }` → `{ status: 'REJECTED_FRAUD_DETECTED' \| 'REFUNDED', trustScoreAdjustment, rationale, provider }` |
 | `GET`  | `/api/events/listen?ns=…` | **SSE stream** (`text/event-stream`). Holds the connection open and forwards every broadcast on `ns`. |
-| `POST` | `/api/simulation/trigger-flashcrash` | Demo trigger: broadcasts to all SSE listeners on `crypto_sentinel.event.flashcrash` **and** fires the Twilio SMS + voice alert. |
+| `POST` | `/api/simulation/trigger-flashcrash` | Demo trigger: broadcasts a critical signal to all SSE listeners on `crypto_sentinel.event.flashcrash` (showcases the event bus). |
 
 ### Example: an agent publishes and another buys
 
@@ -89,9 +89,9 @@ npm run cli -- listen --ns "crypto_sentinel.event.flashcrash"
 
 ```bash
 npm run build && npm start                         # terminal 1
-npm run cli -- subscribe --ns crypto_sentinel.event.flashcrash   # terminal 2
+npm run cli -- listen --ns crypto_sentinel.event.flashcrash   # terminal 2
 curl -X POST http://localhost:3000/api/simulation/trigger-flashcrash   # terminal 3
-# → terminal 2 prints the flashcrash event in real time; Twilio runs simulated
+# → terminal 2 prints the flashcrash event in real time
 ```
 
 ## Architecture (Clean Architecture inside the Next.js app)
@@ -104,7 +104,6 @@ src/
 │  ├─ payments.service.ts    use-case: checkout
 │  ├─ users.service.ts       identity: resolve handle/uuid, self-register
 │  ├─ llm.ts                 NemoClaw judge (Anthropic → Groq → OpenAI → heuristic)
-│  ├─ twilio.ts              SMS + voice broadcast (real or simulated)
 │  ├─ events.ts              in-memory SSE pub/sub bus
 │  ├─ embeddings.ts          swappable embedding provider (mock → OpenAI/NVIDIA)
 │  └─ supabase.ts            typed service-role client
@@ -117,7 +116,7 @@ supabase/migrations/         0001 (base) + 0002 (namespace + marketplace)
 
 ```bash
 npm install
-cp .env.example .env.local        # fill in Supabase + (optional) LLM/Twilio keys
+cp .env.example .env.local        # fill in Supabase + (optional) LLM keys
 # apply supabase/migrations/*.sql  (supabase db push, or paste into the SQL Editor)
 npm run dev                        # http://localhost:3000
 npm run typecheck && npm run build
@@ -125,12 +124,11 @@ npm run typecheck && npm run build
 
 ### Graceful degradation (what works without which keys)
 
-- **No keys at all:** SSE streaming, flashcrash broadcast, Twilio (simulated),
-  and NemoClaw arbitration (deterministic heuristic) all work.
+- **No keys at all:** SSE streaming, flashcrash broadcast, and NemoClaw
+  arbitration (deterministic heuristic) all work.
 - **Supabase configured:** publish / search / checkout return real data.
 - **`ANTHROPIC_API_KEY` (or `GROQ`/`OPENAI`):** the arbitration judge uses a
   real LLM instead of the heuristic.
-- **Twilio creds:** flashcrash sends real SMS + voice calls.
 
 ## Notes & limits
 
