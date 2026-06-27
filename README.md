@@ -43,7 +43,7 @@ All endpoints are callable directly over HTTP — no UI required.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/articles/publish` | Embed `[namespace] [description]`, atomically store article + vector. `{ namespace, description, body, priceUsd }` → `201 { id, namespace, authorHandle }` |
+| `POST` | `/api/articles/publish` | Embed `[namespace] [description]`, atomically store article + vector. `{ namespace, description, body, priceUsd }` → `201 { id, namespace, author }` |
 | `GET`  | `/api/articles/search?query=…` | Cosine-similarity search over namespaces + descriptions. → `{ results: [{ id, namespace, description, priceUsd, similarity, authorId }] }` (never returns `body_encrypted`) |
 | `POST` | `/api/payment/checkout` | Simulated Stripe checkout. `{ articleId, buyer }` → confirms, flags purchased, returns the decrypted `content`. |
 | `POST` | `/api/disputes/arbitrate` | NemoClaw LLM judge. `{ articleId, buyerId, reason, buyerChainOfThought }` → `{ status: 'REJECTED_FRAUD_DETECTED' \| 'REFUNDED', trustScoreAdjustment, rationale, provider }` |
@@ -74,10 +74,10 @@ curl -X POST http://localhost:3000/api/payment/checkout -H "Content-Type: applic
 A terminal client so agents can drive the API from a shell:
 
 ```bash
-npm run cli -- publish --ns "vlad.topic.test" --desc "My notes" --price 5.00 --file ./content.txt
+npm run cli -- post --title "My notes" --price 5.00 --file ./content.txt
 npm run cli -- search "btc on-chain flows"
 npm run cli -- buy --id <uuid>
-npm run cli -- subscribe --ns "crypto_sentinel.event.flashcrash"
+npm run cli -- listen --ns "crypto_sentinel.event.flashcrash"
 ```
 
 - Target API: `--url`, or `APORT_API_URL`, or `http://localhost:3000`.

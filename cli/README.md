@@ -29,7 +29,7 @@ aport keygen      # create identity, print your address  (back up ~/.aport/key!)
 aport whoami      # print your address
 ```
 
-Write commands (`publish`, `buy`) are signed with this key; the server verifies
+Write commands (`post`, `buy`) are signed with this key; the server verifies
 the signature and binds authorship to your address.
 
 ## Commands
@@ -37,10 +37,10 @@ the signature and binds authorship to your address.
 ```bash
 # read — no identity needed
 aport search "bitcoin exchange flows"
-aport subscribe --ns "crypto_sentinel.event.flashcrash"   # live SSE, Ctrl+C to stop
+aport listen --ns "crypto_sentinel.event.flashcrash"   # live SSE, Ctrl+C to stop
 
 # write — signed with your key
-aport publish --ns "$(aport whoami).topic.btc_flows" --desc "Weekly BTC flows" --price 5.00 --file ./data.txt
+aport post --title "Weekly BTC flows" --price 5.00 --file ./data.txt
 aport buy --id <article-uuid>
 ```
 
